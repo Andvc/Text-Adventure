@@ -1,69 +1,49 @@
 {
   "template_id": "adventure_template",
-  "name": "冒险故事模板",
-  "description": "适用于野外探险、遗迹探索等冒险类故事",
+  "name": "冒险模板",
+  "description": "生成一段冒险故事，提供三个选择选项",
   "version": "1.0",
-  "author": "系统",
-  "created_at": "2025-04-09",
-  "tags": [
-    "冒险",
-    "探索",
-    "危险"
-  ],
+  "author": "AI助手",
+  "created_at": "2023-06-01",
+  "tags": ["冒险", "选择", "示例"],
   "prompt_segments": [
     "(世界设定: {world_setting})",
-    "(角色名称: {character.name})",
-    "(角色背景: {character.background})",
-    "(角色属性: 力量={character.strength}, 敏捷={character.agility}, 智力={character.intelligence}, 体质={character.constitution}, 魅力={character.charisma})",
-    "(角色技能: {character.skills})",
-    "(探索地点: {location})",
-    "(前序故事: {previous_story})",
-    "(之前的选择: {previous_choice})",
-    "<描述一段在{location}的探险经历，考虑角色的技能和属性>",
+    "(角色姓名: {name})",
+    "(角色背景: {background})",
+    "(当前位置: {location})",
+    "<请描述{name}在{location}遭遇的一次冒险。角色的力量值为{力量}，敏捷值为{敏捷}，智力值为{智力}。>",
+    "<生成一个引人入胜的场景，考验角色的能力，并提供三个不同的选择方向。>",
+    "<每个选择应该对应不同的解决方案，分别侧重力量、敏捷和智力的运用。>",
+    "<根据选择预设对应的属性变化。>",
     "{story=\"*\"}",
-    "<提供三个可能的选择，要考虑角色的属性和技能>",
-    "{choice1=\"*\", choice2=\"*\", choice3=\"*\"}",
-    "<描述每个选择可能带来的属性变化>",
-    "{stat_change1=\"*\", stat_change2=\"*\", stat_change3=\"*\"}",
-    "<描述每个选择可能导致的结果>",
-    "{outcome1=\"*\", outcome2=\"*\", outcome3=\"*\"}"
-  ],
-  "required_inputs": [
-    "world_setting",
-    "character.name",
-    "character.background",
-    "character.strength",
-    "character.agility",
-    "character.intelligence",
-    "character.constitution",
-    "character.charisma",
-    "character.skills",
-    "location"
+    "{choice1=\"*\"}",
+    "{outcome1=\"*\"}",
+    "{stat_change1=\"*\"}",
+    "{choice2=\"*\"}",
+    "{outcome2=\"*\"}",
+    "{stat_change2=\"*\"}",
+    "{choice3=\"*\"}",
+    "{outcome3=\"*\"}",
+    "{stat_change3=\"*\"}"
   ],
   "output_format": {
     "story": "string",
     "choice1": "string",
-    "choice2": "string",
-    "choice3": "string",
-    "stat_change1": "string",
-    "stat_change2": "string",
-    "stat_change3": "string",
     "outcome1": "string",
+    "stat_change1": "string",
+    "choice2": "string",
     "outcome2": "string",
-    "outcome3": "string"
+    "stat_change2": "string",
+    "choice3": "string",
+    "outcome3": "string",
+    "stat_change3": "string"
   },
-  "next_templates": {
-    "choice1": [
-      "combat_template",
-      "puzzle_template"
-    ],
-    "choice2": [
-      "npc_encounter_template",
-      "treasure_template"
-    ],
-    "choice3": [
-      "rest_template",
-      "travel_template"
-    ]
-  }
+  "output_storage": {
+    "story": "current_story",
+    "choice1": "option1",
+    "choice2": "option2",
+    "choice3": "option3",
+    "content": "story_content"
+  },
+  "prompt_template": "你是一个高级故事生成AI，请根据以下提示创建故事内容。\n\n## 背景信息\n{background}\n\n## 内容要求\n{content}\n\n## 输出格式\n请严格按照以下JSON格式回复：\n{format}"
 }

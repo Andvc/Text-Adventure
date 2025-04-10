@@ -1,16 +1,16 @@
 """
-故事线管理器
+故事线管理器 (简化版)
 
-这个模块负责管理故事线模板、生成故事内容和处理分支选择。
-它与AI模块和角色属性模块集成，提供完整的故事生成功能。
+这个模块负责故事模板的管理和故事内容的生成。
+它直接使用角色模块的属性，避免不必要的变量转换。
 """
 
 import os
 import json
 import time
+import uuid
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Tuple, Union
 
 # 导入AI模块组件
 from ai.prompt_processor import PromptProcessor
@@ -25,73 +25,11 @@ except ImportError:
     CHARACTER_MODULE_AVAILABLE = False
     print("警告：未能导入角色模块，角色属性功能将不可用")
 
-@dataclass
-class StoryChoice:
-    """故事选择选项"""
-    id: str  # 选择ID，例如 "choice1"
-    text: str  # 选择文本
-    outcome: Optional[str] = None  # 选择结果描述（可选）
-    stat_changes: Dict[str, int] = field(default_factory=dict)  # 属性变化，例如 {"strength": 2, "agility": -1}
-    next_templates: List[str] = field(default_factory=list)  # 可能的下一个模板ID列表
-    
-    def __str__(self) -> str:
-        return self.text
-
-@dataclass
-class StorySegment:
-    """故事片段，代表一个生成的故事节点"""
-    id: str  # 唯一标识符
-    template_id: str  # 使用的模板ID
-    content: str  # 主要故事内容
-    choices: List[StoryChoice] = field(default_factory=list)  # 可用选择
-    metadata: Dict[str, Any] = field(default_factory=dict)  # 其他元数据
-    parent_id: Optional[str] = None  # 父节点ID（可选）
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """将故事片段转换为字典格式"""
-        return {
-            "id": self.id,
-            "template_id": self.template_id,
-            "content": self.content,
-            "choices": [
-                {
-                    "id": choice.id,
-                    "text": choice.text,
-                    "outcome": choice.outcome,
-                    "stat_changes": choice.stat_changes,
-                    "next_templates": choice.next_templates
-                }
-                for choice in self.choices
-            ],
-            "metadata": self.metadata,
-            "parent_id": self.parent_id
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'StorySegment':
-        """从字典创建故事片段"""
-        choices = [
-            StoryChoice(
-                id=choice["id"],
-                text=choice["text"],
-                outcome=choice.get("outcome"),
-                stat_changes=choice.get("stat_changes", {}),
-                next_templates=choice.get("next_templates", [])
-            )
-            for choice in data.get("choices", [])
-        ]
-        
-        return cls(
-            id=data["id"],
-            template_id=data["template_id"],
-            content=data["content"],
-            choices=choices,
-            metadata=data.get("metadata", {}),
-            parent_id=data.get("parent_id")
-        )
-
 class StorylineManager:
-    """故事线管理器，处理模板加载、故事生成和分支选择"""
+    """故事线管理器，负责模板管理和故事生成
+    
+    简化版管理器直接使用角色属性，无需内外变量转换
+    """
     
     def __init__(self, templates_dir: Optional[str] = None):
         """初始化故事线管理器
@@ -114,12 +52,12 @@ class StorylineManager:
         self.prompt_processor = PromptProcessor()
         self.api_connector = AIModelConnector()
         
-        # 加载所有模板
+        # 加载模板缓存
         self._templates_cache = {}
         self._load_all_templates()
         
-        # 故事片段存储
-        self.story_segments = {}
+        # 当前会话故事记录
+        self.story_history = {}
     
     def _load_all_templates(self) -> None:
         """加载所有可用的模板"""
@@ -231,107 +169,89 @@ class StorylineManager:
         
         return False
     
-    def _fill_template_variables(self, prompt_segments: List[str], variables: Dict[str, Any]) -> List[str]:
-        """填充模板中的变量
+    def _replace_placeholders(self, text: str) -> str:
+        """替换文本中的角色属性占位符
         
         Args:
-            prompt_segments: 提示片段列表
-            variables: 变量字典
+            text: 包含占位符的文本
             
         Returns:
-            填充后的提示片段列表
+            替换后的文本
         """
-        result = []
-        for segment in prompt_segments:
-            # 替换所有变量
-            filled_segment = segment
-            for var_name, var_value in variables.items():
-                placeholder = "{" + var_name + "}"
-                if placeholder in filled_segment:
-                    filled_segment = filled_segment.replace(placeholder, str(var_value))
+        if not CHARACTER_MODULE_AVAILABLE:
+            return text
             
-            result.append(filled_segment)
+        # 获取所有角色属性
+        all_attributes = character_manager.get_all_attributes()
         
-        return result
+        # 替换基本属性占位符
+        for attr_name, attr_value in all_attributes.items():
+            placeholder = "{" + attr_name + "}"
+            if placeholder in text:
+                text = text.replace(placeholder, str(attr_value))
+                
+            # 处理character.xxx格式
+            character_placeholder = "{character." + attr_name + "}"
+            if character_placeholder in text:
+                text = text.replace(character_placeholder, str(attr_value))
+        
+        # 处理装备等复杂结构
+        if "equipment" in all_attributes and isinstance(all_attributes["equipment"], dict):
+            for item_name, item_value in all_attributes["equipment"].items():
+                placeholder = "{equipment." + item_name + "}"
+                if placeholder in text:
+                    text = text.replace(placeholder, str(item_value))
+        
+        # 添加一些通用默认值
+        if "{world_setting}" in text and "world_setting" not in all_attributes:
+            text = text.replace("{world_setting}", "奇幻世界")
+            
+        if "{location}" in text and "location" not in all_attributes:
+            text = text.replace("{location}", "神秘之地")
+            
+        return text
     
-    def generate_story(self, 
-                      template: Union[str, Dict[str, Any]], 
-                      variables: Optional[Dict[str, Any]] = None,
-                      parent_id: Optional[str] = None) -> Optional[StorySegment]:
-        """生成故事片段
+    def _process_template_segments(self, segments: List[str]) -> List[str]:
+        """处理模板片段，替换其中的角色属性占位符
         
         Args:
-            template: 模板ID或模板内容
-            variables: 可选的额外变量字典，优先级高于角色属性
-            parent_id: 父节点ID（可选）
+            segments: 模板片段列表
             
         Returns:
-            生成的故事片段，如果生成失败则返回None
+            处理后的片段列表
+        """
+        processed_segments = []
+        for segment in segments:
+            processed_segments.append(self._replace_placeholders(segment))
+        return processed_segments
+    
+    def generate_story(self, template_id: str, use_template_storage: bool = True) -> Tuple[str, List[Dict[str, Any]], str]:
+        """生成故事内容
+        
+        Args:
+            template_id: 模板ID
+            use_template_storage: 是否应用模板中定义的存储映射
+            
+        Returns:
+            元组 (故事内容, 选项列表, 故事ID)
         """
         # 加载模板
-        if isinstance(template, str):
-            template_id = template
-            template = self.load_template(template_id)
-            if not template:
-                print(f"模板 {template_id} 不存在")
-                return None
-        else:
-            template_id = template.get("template_id", "unknown")
+        template = self.load_template(template_id)
+        if not template:
+            print(f"模板 {template_id} 不存在")
+            return "", [], ""
         
-        # 准备变量 - 从character_manager直接获取所有属性
-        final_variables = {}
-        if CHARACTER_MODULE_AVAILABLE:
-            try:
-                # 获取所有角色属性
-                all_attributes = character_manager.get_all_attributes()
-                final_variables.update(all_attributes)
-                
-                # 处理嵌套属性访问（例如character.name）
-                for attr_name, attr_value in all_attributes.items():
-                    # 处理character.xxx格式的属性引用
-                    if attr_name in ["name", "background", "strength", "agility", 
-                                    "intelligence", "constitution", "charisma", 
-                                    "skills", "gender", "equipment"]:
-                        final_variables[f"character.{attr_name}"] = attr_value
-                    
-                    # 处理复杂结构（如装备）的内部属性
-                    if attr_name == "equipment" and isinstance(attr_value, dict):
-                        for item_name, item_value in attr_value.items():
-                            final_variables[f"equipment.{item_name}"] = item_value
-            except Exception as e:
-                print(f"获取角色属性失败: {str(e)}")
-        
-        # 如果提供了额外变量，用它们覆盖或补充
-        if variables:
-            final_variables.update(variables)
-            
-        # 检查必需输入 - 如果模板仍然指定了required_inputs，确保它们存在
-        required_inputs = template.get("required_inputs", [])
-        missing_inputs = [input_name for input_name in required_inputs if input_name not in final_variables]
-        if missing_inputs:
-            print(f"缺少必需的输入: {', '.join(missing_inputs)}")
-            # 添加一些默认值
-            for input_name in missing_inputs:
-                if input_name == "world_setting":
-                    final_variables["world_setting"] = "奇幻世界"
-                elif input_name == "location":
-                    final_variables["location"] = "神秘之地"
-                else:
-                    final_variables[input_name] = "未知"
-        
-        # 填充模板变量
+        # 处理提示片段
         prompt_segments = template.get("prompt_segments", [])
-        filled_segments = self._fill_template_variables(prompt_segments, final_variables)
+        processed_segments = self._process_template_segments(prompt_segments)
         
-        # 检查是否有自定义的提示词模板
+        # 使用自定义或默认提示词模板
         if "prompt_template" in template:
-            # 使用模板中的自定义提示词模板
             custom_template = template["prompt_template"]
             custom_processor = PromptProcessor(custom_template)
-            prompt = custom_processor.build_prompt(filled_segments)
+            prompt = custom_processor.build_prompt(processed_segments)
         else:
-            # 使用默认提示词模板
-            prompt = self.prompt_processor.build_prompt(filled_segments)
+            prompt = self.prompt_processor.build_prompt(processed_segments)
         
         # 调用AI生成内容
         try:
@@ -339,16 +259,16 @@ class StorylineManager:
             result = OutputParser.parse(response)
         except Exception as e:
             print(f"生成故事失败: {str(e)}")
-            return None
+            return "", [], ""
         
-        # 创建故事片段
-        story_id = f"story_{int(time.time())}_{template_id}"
-        
-        # 提取故事内容和选择
+        # 提取故事内容
         story_content = result.get("story", "")
+        story_id = str(uuid.uuid4())
         
-        # 创建选择列表
+        # 创建选项列表
         choices = []
+        choice_details = []
+        
         for i in range(1, 10):  # 支持最多9个选择
             choice_key = f"choice{i}"
             outcome_key = f"outcome{i}"
@@ -356,201 +276,118 @@ class StorylineManager:
             if choice_key not in result:
                 break
                 
-            # 创建选择对象
-            choice = StoryChoice(
-                id=choice_key,
-                text=result[choice_key],
-                outcome=result.get(outcome_key)
-            )
-            
             # 处理属性变化
+            stat_changes = {}
             stat_change_key = f"stat_change{i}"
+            
             if stat_change_key in result:
-                # 尝试提取属性变化，格式:"力量+2（通过激烈的战斗提升力量），敏捷+1（剑法实战经验），体质-1（受伤消耗）"
-                stat_changes = {}
                 try:
                     stat_text = result[stat_change_key]
-                    # 分割不同属性的变化
                     changes = stat_text.split("，")
                     for change in changes:
-                        # 提取属性名和变化值
                         for attr_name in ["力量", "敏捷", "智力", "体质", "魅力"]:
                             if attr_name in change:
-                                # 找到数值变化（+2或-1这样的格式）
                                 parts = change.split(attr_name)
                                 if len(parts) > 1:
                                     value_part = parts[1].strip()
                                     if value_part.startswith("+") or value_part.startswith("-"):
                                         try:
-                                            value = int(value_part[0:2])  # 提取+2或-1这样的值
+                                            value = int(value_part[0:2])
                                             stat_changes[attr_name] = value
                                         except ValueError:
                                             pass
                 except Exception as e:
                     print(f"处理属性变化失败: {str(e)}")
-                
-                choice.stat_changes = stat_changes
             
-            # 添加下一个模板信息
-            if "next_templates" in template:
-                choice.next_templates = template["next_templates"].get(choice_key, [])
+            # 添加选项
+            choices.append({
+                "id": i-1,
+                "text": result[choice_key],
+                "outcome": result.get(outcome_key, "")
+            })
             
-            choices.append(choice)
+            choice_details.append({
+                "id": choice_key,
+                "text": result[choice_key],
+                "outcome": result.get(outcome_key, ""),
+                "stat_changes": stat_changes
+            })
         
-        # 创建故事片段
-        story_segment = StorySegment(
-            id=story_id,
-            template_id=template_id,
-            content=story_content,
-            choices=choices,
-            metadata={
-                "generated_at": time.time(),
-                "variables": final_variables,
-                "raw_result": result
-            },
-            parent_id=parent_id
-        )
+        # 存储故事记录
+        self.story_history[story_id] = {
+            "template_id": template_id,
+            "content": story_content,
+            "choices": choice_details,
+            "raw_result": result,
+            "generated_at": time.time()
+        }
         
-        # 存储故事片段
-        self.story_segments[story_id] = story_segment
+        # 存储输出到角色属性
+        if use_template_storage and "output_storage" in template and CHARACTER_MODULE_AVAILABLE:
+            self._apply_storage_mapping(result, story_content, template["output_storage"])
         
-        # 自动将输出直接存储到角色属性中
-        if CHARACTER_MODULE_AVAILABLE:
-            try:
-                # 1. 直接存储生成的结果
-                # 故事内容存储为current_story属性
-                if "story" in result:
-                    self._set_or_create_attribute("current_story", result["story"])
-                
-                # 格式化的故事内容存储为story_content属性
-                self._set_or_create_attribute("story_content", story_content)
-                
-                # 存储选项内容
-                for i, choice in enumerate(choices, 1):
-                    self._set_or_create_attribute(f"option{i}", choice.text)
-                
-                # 2. 应用模板中的存储映射（如果有）
-                if "output_storage" in template:
-                    for output_field, attr_name in template["output_storage"].items():
-                        if output_field in result:
-                            self._set_or_create_attribute(attr_name, result[output_field])
-                        elif output_field == "content":
-                            self._set_or_create_attribute(attr_name, story_content)
-            
-            except Exception as e:
-                print(f"存储输出到角色属性失败: {str(e)}")
-        
-        return story_segment
+        return story_content, choices, story_id
     
-    def _set_or_create_attribute(self, attr_name: str, value: Any) -> None:
-        """设置或创建角色属性
+    def _apply_storage_mapping(self, result: Dict[str, Any], story_content: str, mapping: Dict[str, str]) -> None:
+        """应用存储映射，将输出存储到角色属性
         
         Args:
-            attr_name: 属性名
-            value: 属性值
+            result: AI输出结果
+            story_content: 格式化的故事内容
+            mapping: 存储映射 {输出字段: 属性名}
         """
         if not CHARACTER_MODULE_AVAILABLE:
             return
             
-        try:
-            # 检查属性是否已存在
-            current_value = character_manager.get_attribute(attr_name)
-            if current_value is not None:
-                # 更新现有属性
-                character_manager.set_attribute(attr_name, value)
-                #print(f"更新属性: {attr_name} = {value}")
+        for output_field, attr_name in mapping.items():
+            # 处理特殊字段"content"
+            if output_field == "content":
+                value = story_content
+            # 处理普通输出字段
+            elif output_field in result:
+                value = result[output_field]
             else:
-                # 创建新属性
-                character_manager.create_attribute(attr_name, value)
-                #print(f"创建属性: {attr_name} = {value}")
-        except Exception as e:
-            print(f"设置属性失败 {attr_name}: {str(e)}")
+                continue
+            
+            # 存储或更新属性
+            try:
+                current_value = character_manager.get_attribute(attr_name)
+                if current_value is not None:
+                    character_manager.set_attribute(attr_name, value)
+                    print(f"更新属性: {attr_name}")
+                else:
+                    character_manager.create_attribute(attr_name, value)
+                    print(f"创建属性: {attr_name}")
+            except Exception as e:
+                print(f"存储属性失败 {attr_name}: {str(e)}")
     
-    def choose_branch(self, 
-                     story: Union[str, StorySegment], 
-                     choice_index: int) -> Optional[StoryChoice]:
-        """选择故事分支
+    def make_choice(self, story_id: str, choice_index: int) -> None:
+        """执行选择，应用属性变化
         
         Args:
-            story: 故事片段或故事ID
-            choice_index: 选择的索引（从0开始）
-            
-        Returns:
-            选择的分支，如果选择无效则返回None
+            story_id: 故事ID
+            choice_index: 选择索引（从0开始）
         """
-        # 获取故事片段
-        if isinstance(story, str):
-            if story not in self.story_segments:
-                print(f"故事片段 {story} 不存在")
-                return None
-            story_segment = self.story_segments[story]
-        else:
-            story_segment = story
+        # 检查故事ID
+        if story_id not in self.story_history:
+            print(f"故事ID {story_id} 不存在")
+            return
+            
+        # 获取故事记录
+        story_data = self.story_history[story_id]
+        choices = story_data.get("choices", [])
         
-        # 检查选择有效性
-        if choice_index < 0 or choice_index >= len(story_segment.choices):
+        # 验证选择索引
+        if choice_index < 0 or choice_index >= len(choices):
             print(f"无效的选择索引: {choice_index}")
-            return None
-        
-        # 返回所选分支
-        return story_segment.choices[choice_index]
-    
-    def continue_story(self, 
-                      story: Union[str, StorySegment], 
-                      choice_index: int, 
-                      variables: Optional[Dict[str, Any]] = None) -> Optional[StorySegment]:
-        """基于选择继续故事
-        
-        Args:
-            story: 故事片段或故事ID
-            choice_index: 选择的索引（从0开始）
-            variables: 可选的额外变量字典，优先级高于角色属性
+            return
             
-        Returns:
-            生成的下一个故事片段，如果继续失败则返回None
-        """
-        # 获取故事片段
-        if isinstance(story, str):
-            if story not in self.story_segments:
-                print(f"故事片段 {story} 不存在")
-                return None
-            story_segment = self.story_segments[story]
-        else:
-            story_segment = story
-        
         # 获取选择
-        if choice_index < 0 or choice_index >= len(story_segment.choices):
-            print(f"无效的选择索引: {choice_index}")
-            return None
-            
-        choice = story_segment.choices[choice_index]
+        choice = choices[choice_index]
         
-        # 获取下一个模板
-        next_templates = choice.next_templates
-        if not next_templates:
-            print("没有可用的后续模板")
-            return None
-        
-        # 选择第一个可用模板
-        next_template_id = next_templates[0]
-        next_template = self.load_template(next_template_id)
-        if not next_template:
-            print(f"模板 {next_template_id} 不存在")
-            return None
-        
-        # 准备额外变量 - 主要是previous_story和previous_choice
-        extra_vars = {}
-        extra_vars["previous_story"] = story_segment.content
-        extra_vars["previous_choice"] = choice.text
-        
-        # 如果提供了额外变量，将其合并
-        if variables:
-            extra_vars.update(variables)
-        
-        # 应用选择的属性变化
-        if CHARACTER_MODULE_AVAILABLE and choice.stat_changes:
-            for attr_name, change_value in choice.stat_changes.items():
-                # 尝试更新角色属性
+        # 应用属性变化
+        if CHARACTER_MODULE_AVAILABLE and "stat_changes" in choice and choice["stat_changes"]:
+            for attr_name, change_value in choice["stat_changes"].items():
                 try:
                     current_value = character_manager.get_attribute(attr_name)
                     if isinstance(current_value, (int, float)):
@@ -559,326 +396,59 @@ class StorylineManager:
                 except Exception as e:
                     print(f"无法更新属性 {attr_name}: {str(e)}")
         
-        # 记录玩家选择的选项索引(从1开始)
+        # 记录选择
         if CHARACTER_MODULE_AVAILABLE:
-            self._set_or_create_attribute("last_choice_index", choice_index + 1)
-            
-        # 生成下一个故事片段
-        return self.generate_story(next_template, extra_vars, parent_id=story_segment.id)
+            character_manager.set_attribute("last_choice", choice["text"])
+            character_manager.set_attribute("last_story", story_data["content"])
     
-    def save_story_to_file(self, story: Union[str, StorySegment], filepath: str) -> bool:
-        """将故事片段保存到文件
+    def get_story(self, story_id: str) -> Optional[Dict[str, Any]]:
+        """获取故事记录
         
         Args:
-            story: 故事片段或故事ID
+            story_id: 故事ID
+            
+        Returns:
+            故事记录，如果不存在则返回None
+        """
+        return self.story_history.get(story_id)
+        
+    def clear_history(self) -> None:
+        """清除所有故事历史记录"""
+        self.story_history = {}
+        print("已清除所有故事历史记录")
+    
+    def save_history_to_file(self, filepath: str) -> bool:
+        """将故事历史记录保存到文件
+        
+        Args:
             filepath: 保存路径
             
         Returns:
             保存是否成功
         """
-        # 获取故事片段
-        if isinstance(story, str):
-            if story not in self.story_segments:
-                print(f"故事片段 {story} 不存在")
-                return False
-            story_segment = self.story_segments[story]
-        else:
-            story_segment = story
-        
-        # 转换为字典
-        story_dict = story_segment.to_dict()
-        
-        # 保存到文件
         try:
             with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(story_dict, f, ensure_ascii=False, indent=2)
+                json.dump(self.story_history, f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
-            print(f"保存故事失败: {str(e)}")
+            print(f"保存历史记录失败: {str(e)}")
             return False
     
-    def load_story_from_file(self, filepath: str) -> Optional[StorySegment]:
-        """从文件加载故事片段
+    def load_history_from_file(self, filepath: str) -> bool:
+        """从文件加载故事历史记录
         
         Args:
             filepath: 文件路径
             
         Returns:
-            加载的故事片段，如果加载失败则返回None
+            加载是否成功
         """
         try:
             with open(filepath, "r", encoding="utf-8") as f:
-                story_dict = json.load(f)
+                history = json.load(f)
             
-            # 创建故事片段
-            story_segment = StorySegment.from_dict(story_dict)
-            
-            # 存储到管理器
-            self.story_segments[story_segment.id] = story_segment
-            
-            return story_segment
+            self.story_history = history
+            return True
         except Exception as e:
-            print(f"加载故事失败: {str(e)}")
-            return None 
-    
-    def generate_story_from_character(self, 
-                                     template: Union[str, Dict[str, Any]],
-                                     extra_variables: Optional[Dict[str, Any]] = None,
-                                     parent_id: Optional[str] = None) -> Optional[StorySegment]:
-        """从角色属性生成故事片段（保留用于向后兼容）
-        
-        Args:
-            template: 模板ID或模板内容
-            extra_variables: 额外的变量，会覆盖或补充角色属性
-            parent_id: 父节点ID（可选）
-            
-        Returns:
-            生成的故事片段，如果生成失败则返回None
-        """
-        # 直接调用generate_story，已经会自动从character_manager加载属性
-        return self.generate_story(template, extra_variables, parent_id)
-    
-    def continue_story_from_character(self, 
-                                     story: Union[str, StorySegment], 
-                                     choice_index: int,
-                                     extra_variables: Optional[Dict[str, Any]] = None) -> Optional[StorySegment]:
-        """基于角色属性和选择继续故事（保留用于向后兼容）
-        
-        Args:
-            story: 故事片段或故事ID
-            choice_index: 选择的索引（从0开始）
-            extra_variables: 额外的变量，会覆盖或补充角色属性
-            
-        Returns:
-            生成的下一个故事片段，如果继续失败则返回None
-        """
-        # 直接调用continue_story，已经会自动处理角色属性
-        return self.continue_story(story, choice_index, extra_variables)
-
-    def run_template(self, template_id: str, variables: Optional[Dict[str, Any]] = None) -> Tuple[str, List[Dict[str, Any]]]:
-        """运行模板并返回结果（简化API）
-        
-        Args:
-            template_id: 模板ID
-            variables: 可选的额外变量字典，优先级高于角色属性
-            
-        Returns:
-            包含故事内容和选择选项的元组 (story_content, choices)
-        """
-        # 直接生成故事
-        story_segment = self.generate_story(template_id, variables)
-        
-        if not story_segment:
-            return "", []
-        
-        # 转换选择为简单格式
-        choices = []
-        for i, choice in enumerate(story_segment.choices):
-            choices.append({
-                "id": i,  # 使用索引作为ID，便于后续选择
-                "text": choice.text,
-                "outcome": choice.outcome or ""
-            })
-        
-        return story_segment.content, choices
-    
-    def make_choice(self, story_id: str, choice_index: int, variables: Optional[Dict[str, Any]] = None) -> Tuple[str, List[Dict[str, Any]]]:
-        """执行选择并继续故事（简化API）
-        
-        Args:
-            story_id: 故事片段ID
-            choice_index: 选择的索引
-            variables: 可选的额外变量字典，优先级高于角色属性
-            
-        Returns:
-            包含故事内容和选择选项的元组 (story_content, choices)
-        """
-        # 获取故事片段
-        if story_id not in self.story_segments:
-            return "", []
-        story_segment = self.story_segments[story_id]
-        
-        # 继续故事
-        next_segment = self.continue_story(story_segment, choice_index, variables)
-        
-        if not next_segment:
-            return "", []
-        
-        # 转换选择为简单格式
-        choices = []
-        for i, choice in enumerate(next_segment.choices):
-            choices.append({
-                "id": i,
-                "text": choice.text,
-                "outcome": choice.outcome or ""
-            })
-        
-        return next_segment.content, choices
-        
-    def run_template_and_store(self, template_id: str, 
-                              variables: Optional[Dict[str, Any]] = None,
-                              store_fields: Optional[Dict[str, str]] = None) -> Tuple[str, List[Dict[str, Any]]]:
-        """运行模板并将结果存储到角色属性中（增强API - 向后兼容）
-        
-        Args:
-            template_id: 模板ID
-            variables: 可选的额外变量字典，优先级高于角色属性
-            store_fields: 需要存储到角色属性中的字段映射，格式为 {输出字段名: 属性名}
-                         例如: {"story": "last_story", "choice1": "last_choice"}
-            
-        Returns:
-            包含故事内容和选择选项的元组 (story_content, choices)
-        """
-        # 简单调用run_template - 存储已经在generate_story中自动进行
-        # 如果提供了store_fields，需要将其应用到模板中
-        template = self.load_template(template_id)
-        if template and store_fields:
-            # 临时更新模板的output_storage字段
-            original_storage = template.get("output_storage", {})
-            template["output_storage"] = {**original_storage, **store_fields}
-            
-            # 生成故事
-            story_segment = self.generate_story(template, variables)
-            
-            # 恢复原始模板
-            if original_storage:
-                template["output_storage"] = original_storage
-            else:
-                template.pop("output_storage", None)
-        else:
-            # 正常生成故事
-            story_segment = self.generate_story(template_id, variables)
-        
-        if not story_segment:
-            return "", []
-            
-        # 转换选择为简单格式
-        choices = []
-        for i, choice in enumerate(story_segment.choices):
-            choices.append({
-                "id": i,
-                "text": choice.text,
-                "outcome": choice.outcome or ""
-            })
-        
-        return story_segment.content, choices
-    
-    def make_choice_and_store(self, story_id: str, choice_index: int, 
-                             variables: Optional[Dict[str, Any]] = None,
-                             store_fields: Optional[Dict[str, str]] = None) -> Tuple[str, List[Dict[str, Any]]]:
-        """执行选择并将结果存储到角色属性中（增强API - 向后兼容）
-        
-        Args:
-            story_id: 故事片段ID
-            choice_index: 选择的索引
-            variables: 可选的额外变量字典，优先级高于角色属性
-            store_fields: 需要存储到角色属性中的字段映射，格式为 {输出字段名: 属性名}
-            
-        Returns:
-            包含故事内容和选择选项的元组 (story_content, choices)
-        """
-        # 获取故事片段
-        if story_id not in self.story_segments:
-            return "", []
-        story_segment = self.story_segments[story_id]
-        
-        # 获取选择
-        if choice_index < 0 or choice_index >= len(story_segment.choices):
-            return "", []
-        choice = story_segment.choices[choice_index]
-        
-        # 获取下一个模板
-        next_templates = choice.next_templates
-        if not next_templates:
-            return "", []
-        
-        # 选择第一个可用模板
-        next_template_id = next_templates[0]
-        next_template = self.load_template(next_template_id)
-        if not next_template:
-            return "", []
-            
-        # 如果提供了store_fields，需要将其应用到模板中
-        if store_fields:
-            # 临时更新模板的output_storage字段
-            original_storage = next_template.get("output_storage", {})
-            next_template["output_storage"] = {**original_storage, **store_fields}
-            
-            # 准备额外变量
-            extra_vars = {}
-            if variables:
-                extra_vars.update(variables)
-            extra_vars["previous_story"] = story_segment.content
-            extra_vars["previous_choice"] = choice.text
-            
-            # 应用属性变化
-            if CHARACTER_MODULE_AVAILABLE and choice.stat_changes:
-                for attr_name, change_value in choice.stat_changes.items():
-                    try:
-                        current_value = character_manager.get_attribute(attr_name)
-                        if isinstance(current_value, (int, float)):
-                            character_manager.set_attribute(attr_name, current_value + change_value)
-                    except:
-                        pass
-            
-            # 生成下一个故事片段
-            next_segment = self.generate_story(next_template, extra_vars, parent_id=story_segment.id)
-            
-            # 恢复原始模板
-            if original_storage:
-                next_template["output_storage"] = original_storage
-            else:
-                next_template.pop("output_storage", None)
-        else:
-            # 正常继续故事
-            next_segment = self.continue_story(story_segment, choice_index, variables)
-        
-        if not next_segment:
-            return "", []
-        
-        # 转换选择为简单格式
-        choices = []
-        for i, choice in enumerate(next_segment.choices):
-            choices.append({
-                "id": i,
-                "text": choice.text,
-                "outcome": choice.outcome or ""
-            })
-        
-        return next_segment.content, choices
-
-    def get_story_content(self, story_id: str) -> str:
-        """获取故事内容（简化API）
-        
-        Args:
-            story_id: 故事片段ID
-            
-        Returns:
-            故事内容
-        """
-        if story_id in self.story_segments:
-            return self.story_segments[story_id].content
-        return ""
-    
-    def get_story_choices(self, story_id: str) -> List[Dict[str, Any]]:
-        """获取故事选择（简化API）
-        
-        Args:
-            story_id: 故事片段ID
-            
-        Returns:
-            选择选项列表
-        """
-        if story_id not in self.story_segments:
-            return []
-        
-        story_segment = self.story_segments[story_id]
-        choices = []
-        for i, choice in enumerate(story_segment.choices):
-            choices.append({
-                "id": i,
-                "text": choice.text,
-                "outcome": choice.outcome or ""
-            })
-        
-        return choices
+            print(f"加载历史记录失败: {str(e)}")
+            return False

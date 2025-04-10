@@ -5,11 +5,12 @@
 支持与AI模块和角色属性模块集成。
 """
 
+import os
 from pathlib import Path
 
 # 定义模块路径
 MODULE_PATH = Path(__file__).parent.absolute()
-TEMPLATES_PATH = MODULE_PATH / "templates"
+TEMPLATES_PATH = Path(os.path.join(os.path.dirname(__file__), "templates"))
 TOOLS_PATH = MODULE_PATH / "tools"
 
 # 确保目录存在

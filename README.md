@@ -52,30 +52,27 @@ AI模块提供了构建AI提示词、调用大模型API并解析JSON格式响应
 
 故事线模块提供了两种模板编辑工具：
 
-1. **图形界面编辑器**：提供可视化界面编辑模板
+1. **简化版模板编辑器（推荐）**：适配新版StorylineManager，直接使用角色属性
    ```bash
-   python -m storyline.tools.template_editor
+   python -m storyline  # 直接启动简化版编辑器
+   # 或者
+   python -m storyline.tools simplified_template_editor
    ```
 
    **主要特性**:
-   - 基本信息编辑（ID、名称、描述等）
+   - 更简洁的界面设计，功能更集中
+   - 不需要定义输入变量，直接使用角色属性
+   - 集成的输出格式和存储映射配置
    - 提示片段管理（背景信息、内容指令、输出格式）
-   - 输入/输出字段定义
-   - 模板链接配置
-   - **角色属性集成**：直接浏览、选择并导入角色属性到模板中
-   - **存档管理**：查看、选择、创建和编辑游戏存档
-   - **提示词处理**：使用AI模块的提示词处理功能，直接生成和测试提示词
-   - **模板专属提示词**：每个模板都可以设置专属的提示词模板，自动保存到模板数据
-   - **输出存储映射**：配置模板输出字段到角色属性的自动存储映射
+   - 角色属性浏览和引用
+   - 提示词处理和测试
    - JSON预览与验证
 
-2. **命令行工具**（遗留，功能有限）：适合基本的脚本操作
+2. **旧版编辑器（遗留）**：仅适用于旧版StorylineManager
    ```bash
-   python -m storyline.tools.template_builder list
-   python -m storyline.tools.template_builder create
-   python -m storyline.tools.template_builder show adventure_template
+   python -m storyline.tools template_editor
    ```
-   > **注意**: 该工具不支持最新功能，如输出存储映射、提示词处理等，推荐使用图形界面编辑器
+   > **注意**: 该工具不适用于新的简化版StorylineManager，不建议继续使用
 
 ## 安装与配置
 
@@ -112,27 +109,27 @@ python test_integration.py
 
 ## 模块组合示例
 
-### 创建角色并生成故事
+### 创建角色并生成故事 (简化版API)
 
 ```python
 # 导入角色模块
-from character.character_manager import create_attribute, get_attribute, set_attribute
+from character.character_manager import create_attribute, get_attribute
 
 # 导入故事线模块
 from storyline.storyline_manager import StorylineManager
 
-# 创建角色
+# 创建角色属性
 create_attribute("name", "李逍遥")
 create_attribute("background", "自小在山野长大的少年，性格乐观开朗")
-create_attribute("strength", 8)
-create_attribute("agility", 12)
-create_attribute("intelligence", 10)
+create_attribute("力量", 8)
+create_attribute("敏捷", 12)
+create_attribute("智力", 10)
 
 # 初始化故事线管理器
 manager = StorylineManager()
 
-# 使用简化API生成故事（自动读取角色属性）
-story_content, choices = manager.run_template("adventure_template")
+# 生成故事（自动使用角色属性）
+story_content, choices, story_id = manager.generate_story("adventure_template")
 
 # 显示故事
 print(story_content)
@@ -141,109 +138,100 @@ print(story_content)
 for choice in choices:
     print(f"{choice['id'] + 1}. {choice['text']}")
 
-# 假设玩家选择了第一个选项
-story_id = next(iter(manager.story_segments))  # 获取当前故事ID
-next_content, next_choices = manager.make_choice(story_id, 0)
+# 选择一个选项并应用属性变化
+manager.make_choice(story_id, 0)  # 选择第一个选项
 
-# 显示下一段故事
-print(next_content)
+# 角色属性已自动更新
+print(f"力量: {get_attribute('力量')}")
 ```
 
-### 带额外变量的故事生成
+### 自动存储映射
+
+使用模板的`output_storage`字段配置自动存储映射：
+
+```json
+{
+  "template_id": "adventure_template",
+  "name": "冒险模板",
+  "prompt_segments": ["..."],
+  "output_storage": {
+    "story": "current_story",
+    "choice1": "option1",
+    "choice2": "option2",
+    "choice3": "option3",
+    "content": "story_content"
+  }
+}
+```
+
+使用模板编辑器的"输出存储"选项卡，可以可视化地配置这些映射关系。当模板执行时，系统会自动将输出字段存储到对应的角色属性中。
+
+## 系统简化与改进
+
+## 设计理念的转变
+
+在本次重构中，我们对系统进行了彻底的简化，移除了不必要的复杂性，使得整个故事生成系统更加直观和易于使用。主要改进包括：
+
+1. **直接使用角色属性**：移除了内外变量转换的复杂性，模板直接使用角色属性进行渲染
+2. **简化的API设计**：减少API方法数量，让每个方法的功能更加清晰
+3. **自包含的模板**：每个模板现在是一个完整的事件单元，包含输出格式、存储映射和属性变化
+4. **统一的接口**：提供直观的界面，将相关功能整合到同一选项卡
+5. **去除不必要功能**：移除模板链接配置等复杂功能，让用户对故事流程有更直接的控制
+
+## 主要改动
+
+### StorylineManager改进
+
+1. **直接属性访问**：
+   - 移除了`required_inputs`和内部变量，直接使用角色属性
+   - 使用`_replace_placeholders`方法自动处理属性占位符
+
+2. **简化API**：
+   - `generate_story(template_id)` - 直接生成故事，自动应用存储映射
+   - `make_choice(story_id, choice_index)` - 执行选择，应用属性变化
+
+3. **存储重设计**：
+   - 统一的属性存储系统，每个模板可以定义`output_storage`字段
+   - 自动创建或更新角色属性，无需手动调用存储方法
+
+### 模板编辑器重构
+
+1. **重新设计的选项卡**：
+   - **基本信息**：常规的模板元数据
+   - **提示片段**：直接引用角色属性的提示片段管理
+   - **输出和存储**：整合输出格式和存储映射到一个界面
+   - **角色属性**：浏览并引用当前角色属性
+   - **提示词处理**：测试和定制提示词模板
+   - **JSON预览**：查看完整的模板格式
+
+2. **简化的工作流程**：
+   - 双击属性可直接插入到片段编辑器
+   - 右键菜单提供常用操作
+   - 使用提示和帮助说明减少学习成本
+
+3. **模板结构优化**：
+   - 移除`required_inputs`字段
+   - 移除`next_templates`配置
+   - 添加统一的`output_storage`映射
+
+## 使用示例
+
+新系统使用起来更加简单直接：
 
 ```python
-# 使用额外变量和自定义提示词模板生成故事
-variables = {
-    "location": "古老的图书馆",
-    "goal": "寻找失落的典籍",
-    "obstacle": "神秘的禁制"
-}
+# 初始化管理器
+manager = StorylineManager()
 
-# 生成故事
-story_content, choices = manager.run_template("library_template", variables)
+# 直接生成故事，自动使用角色属性
+story_content, choices, story_id = manager.generate_story("adventure_template")
+
+# 选择一个选项，自动应用属性变化
+manager.make_choice(story_id, 0)  # 选择第一个选项
 ```
 
-### 将模板输出存储到角色属性
+## 总结
 
-```python
-# 定义要存储的输出字段映射
-store_fields = {
-    "story": "current_story",    # 将story字段存储到current_story属性
-    "choice1": "option1",        # 将choice1字段存储到option1属性
-    "choice2": "option2",        # 将choice2字段存储到option2属性
-    "content": "story_content"   # 将格式化的故事内容存储到story_content属性
-}
-
-# 运行模板并存储输出到角色属性
-story_content, choices = manager.run_template_and_store(
-    "adventure_template", 
-    store_fields=store_fields
-)
-
-# 执行选择并存储下一段故事的输出
-story_id = next(iter(manager.story_segments))
-next_content, next_choices = manager.make_choice_and_store(
-    story_id, 
-    0,  # 选择第一个选项
-    store_fields={"story": "next_story", "choice1": "next_option1"}
-)
-
-# 现在可以从角色属性中获取存储的内容
-current_story = get_attribute("current_story")
-next_story = get_attribute("next_story")
-```
-
-## 最近更新
-
-### 模板变量处理优化
-- 优化了模板变量处理机制，模板现在可以直接引用和修改角色属性，无需中间转换
-- 移除了冗余的变量传递过程，自动从character_manager加载所有可用属性
-- 执行模板后直接将输出存储到角色属性中，简化了存储逻辑
-- 优化API调用流程，同时保持向后兼容性
-- 减少了数据复制和转换，提高了执行效率
-
-### 模板自动存储功能
-- 新增"单模板自动存储"功能，使模板能够自动应用存储映射，将输出存储到角色属性
-- 无需手动调用`run_template_and_store`，`generate_story`方法会自动检查并应用模板中的`output_storage`字段
-- 模板可以自动应用输出存储、属性变化和事件处理，成为一个完整的游戏事件单元
-- 每次`continue_story`也会自动应用下一个模板中的`output_storage`设置
-- 模板编辑器中的"输出存储"选项卡现在能完整加载和编辑模板中的存储映射设置
-
-### 模板输出存储功能
-- 新增`run_template_and_store`和`make_choice_and_store`方法，可以将模板执行结果直接存储到角色属性
-- 支持将原始输出字段和格式化后的故事内容存储为属性
-- 自动处理属性的创建和更新，避免重复代码
-- 添加了示例脚本`examples/store_output_example.py`展示如何使用这些功能
-- 可以与已有的角色属性系统无缝集成，便于游戏状态管理
-
-### 模板专属提示词模板和简化API
-- 每个模板现在可以设置专属的提示词处理模板，自动保存在模板JSON中
-- StorylineManager提供了简化的API，使调用更加简单直观：
-  - `run_template(template_id, variables=None)` - 一步运行模板生成故事
-  - `make_choice(story_id, choice_index, variables=None)` - 执行选择并生成下一段故事
-  - `get_story_content(story_id)` - 获取故事内容
-  - `get_story_choices(story_id)` - 获取选择选项
-- 简化的API能自动处理角色属性读取，使集成更加容易
-- 查看 `examples/simple_story_api.py` 了解如何使用简化API
-
-### 提示词处理功能集成
-- 新增"提示词处理"选项卡，直接在模板编辑器中访问AI模块的提示词功能
-- 提供自定义提示词模板的能力，可编辑和保存模板
-- 支持一键从当前编辑的模板片段生成完整的提示词
-- 预览生成的提示词并直接复制到剪贴板，方便测试
-
-### 存档管理功能
-- 新增"存档管理"选项卡，直接在编辑器中管理游戏存档
-- 显示当前使用的存档文件路径
-- 支持选择其他存档文件或创建新存档
-- 提供属性编辑器，可以直接查看、添加、修改和删除存档中的属性
-- 支持所有数据类型的编辑，包括数字、字符串、布尔值和复杂JSON数据
-
-### 角色属性集成到模板编辑器
-- 新增"角色属性"选项卡，直接浏览现有角色属性
-- 支持按类别组织显示属性
-- 双击属性可预览并插入到模板中
-- 支持将属性作为输入变量或提示片段内容使用
+这次重构将复杂的变量转换和模板关联转变为直观的属性引用和独立模板，极大地降低了系统的复杂度和学习门槛。新系统提供了更加简洁和一致的用户体验，同时保留了原有系统的核心功能。
 
 ## 许可证
 
