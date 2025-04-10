@@ -1,0 +1,56 @@
+{
+  "template_id": "combat_template",
+  "name": "战斗场景模板",
+  "description": "适用于与敌人战斗的场景",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2023-04-09",
+  "prompt_segments": [
+    "(世界设定: {world_setting})",
+    "(角色名称: {character.name})",
+    "(角色背景: {character.background})",
+    "(角色属性: 力量={character.strength}, 敏捷={character.agility}, 智力={character.intelligence}, 体质={character.constitution}, 魅力={character.charisma})",
+    "(角色技能: {character.skills})",
+    "(前序故事: {previous_story})",
+    "(之前的选择: {previous_choice})",
+    "<描述一场战斗场景，考虑角色的技能和属性>",
+    "{story=\"*\"}",
+    "<提供三个可能的战斗策略>",
+    "{choice1=\"*\", choice2=\"*\", choice3=\"*\"}",
+    "<描述每个选择可能带来的属性变化>",
+    "{stat_change1=\"*\", stat_change2=\"*\", stat_change3=\"*\"}",
+    "<描述每个选择可能导致的结果>",
+    "{outcome1=\"*\", outcome2=\"*\", outcome3=\"*\"}"
+  ],
+  "required_inputs": [
+    "world_setting",
+    "character.name",
+    "character.background",
+    "character.strength",
+    "character.agility",
+    "character.intelligence",
+    "character.constitution",
+    "character.charisma",
+    "character.skills",
+    "previous_story",
+    "previous_choice"
+  ],
+  "output_format": {
+    "story": "string",
+    "choice1": "string",
+    "choice2": "string",
+    "choice3": "string",
+    "stat_change1": "string",
+    "stat_change2": "string",
+    "stat_change3": "string",
+    "outcome1": "string",
+    "outcome2": "string",
+    "outcome3": "string"
+  },
+  "tags": ["战斗", "冲突", "危险"],
+  "next_templates": {
+    "choice1": ["victory_template", "escape_template"],
+    "choice2": ["injury_template", "victory_template"],
+    "choice3": ["surprise_template", "defeat_template"]
+  }
+} 

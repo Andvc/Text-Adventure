@@ -1,0 +1,50 @@
+{
+  "template_id": "simple_loop",
+  "name": "简单循环",
+  "description": "单模版循环测试",
+  "version": "1.0",
+  "author": "Andvc",
+  "created_at": "2025-04-09",
+  "tags": [
+    "测试"
+  ],
+  "prompt_segments": [
+    "(角色姓名{character.姓名})",
+    "(背景世界{character.世界})",
+    "(角色境界{character.境界})",
+    "(全局故事梗概{character.故事梗概})",
+    "(当前处于的事件{character.当前事件})",
+    "(当前的事件选择{character.事件选择})",
+    "<请输出接着当前故事选择的下一段故事>",
+    "{story=\"*\"}",
+    "<输出接下来的三个选择>",
+    "{choice1=\"*\",choice2=\"*\",choice3=\"*\"}",
+    "<在原有的故事梗概中补充本次事件，注意，保证梗概本体的简洁性>",
+    "{content=“*”}"
+  ],
+  "required_inputs": [],
+  "output_format": {
+    "story": "string",
+    "choice1": "string",
+    "choice2": "string",
+    "choice3": "string",
+    "content": "string"
+  },
+  "next_templates": {
+    "choice1": [
+      "simple_loop"
+    ],
+    "choice2": [
+      "simple_loop"
+    ],
+    "choice3": [
+      "simple_loop"
+    ]
+  },
+  "prompt_template": "请严格按照以下JSON格式输出，不要添加任何其他内容或解释：\n\n{{\n  \"{output_key}\": \"请在这里填入中文{output_content}\"\n}}\n\n请确保输出是有效的JSON格式。\n提供给你的信息: {input_info}",
+  "output_storage": {
+    "story": "当前事件",
+    "choice1": "事件选择",
+    "content": "故事梗概"
+  }
+}

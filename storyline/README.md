@@ -1,75 +1,140 @@
-# 剧情模块
+# Storyline模块
 
-剧情模块负责游戏故事情节的生成和管理，是游戏核心内容的主要提供者。
+这个模块负责管理文字冒险游戏的主线剧情。它提供了一系列工具来创建、编辑和管理故事模板，以及生成基于这些模板的游戏故事情节。
 
-## 功能概述
-
-- 世界设定管理：维护游戏世界的基本规则、背景故事和设定
-- 主线剧情生成：使用AI生成主要故事情节和关键任务
-- 支线剧情生成：根据玩家行为和选择，动态生成相关支线任务
-- 分支选择系统：提供多种选择，并根据选择调整后续剧情发展
-- 事件系统：触发各种随机或条件性事件
-- 对话系统：生成NPC对话和交互内容
-
-## 设计思路
-
-### 故事结构设计
-
-游戏采用"主干+分支"的故事结构：
-- 主干：贯穿游戏始终的主要故事线
-- 分支：根据玩家选择分叉的支线情节
-- 汇合点：不同分支最终汇合到主干的关键节点
-
-### AI内容生成策略
-
-- **上下文管理**：维护当前故事上下文，确保生成内容的连贯性
-- **角色一致性**：确保角色的言行和性格特征保持一致
-- **世界规则约束**：生成的内容必须符合游戏世界的基本规则
-- **玩家选择影响**：根据玩家的历史选择调整剧情发展方向
-
-### 数据结构
+## 目录结构
 
 ```
-故事节点{
-    节点ID: 唯一标识符
-    节点类型: [主线/支线/事件/对话]
-    内容: 节点的具体内容
-    选项列表: [
-        {选项描述, 后续节点ID, 条件, 影响}
-    ]
-    条件: 触发该节点的条件
+storyline/
+├── README.md           # 本文档
+├── __init__.py         # 模块初始化文件
+├── storyline_manager.py # 故事线管理核心功能
+├── templates/          # 存放故事模板的目录
+│   ├── base_template.json        # 基础模板
+│   ├── adventure_template.json   # 冒险类故事模板
+│   └── ...                       # 其他模板
+└── tools/              # 工具集
+    ├── template_editor.py  # 模板编辑工具
+    └── template_builder.py # 模板构建工具
+```
+
+## 主要功能
+
+### 1. 模板管理
+
+- 提供标准化的故事模板格式
+- 支持创建、读取、更新和删除模板
+- 模板分类与组织管理
+
+### 2. 故事生成
+
+- 基于模板生成故事内容
+- 与AI模块集成，进行动态内容生成
+- 故事分支和选择点管理
+
+### 3. 游戏进程跟踪
+
+- 记录玩家在故事中的位置
+- 管理故事状态和进度
+- 提供游戏存档和加载功能
+
+## 模板编辑工具
+
+模板编辑工具(template_editor.py)提供了一个便捷的界面来创建和编辑故事模板。主要功能包括：
+
+- 创建新模板
+- 编辑现有模板
+- 验证模板格式
+- 预览模板效果
+- 导入/导出模板
+
+## 使用方法
+
+### 基本用法
+
+```python
+from storyline.storyline_manager import StorylineManager
+
+# 初始化故事线管理器
+manager = StorylineManager()
+
+# 加载模板
+template = manager.load_template("adventure_template")
+
+# 生成故事
+story = manager.generate_story(template, character_attributes)
+
+# 获取故事内容
+print(story.content)
+
+# 获取可能的选择
+for choice in story.choices:
+    print(choice.text)
+
+# 选择一个分支
+next_story = manager.choose_branch(story, choice_index=1)
+```
+
+### 使用模板编辑工具
+
+```bash
+# 启动模板编辑器
+python -m storyline.tools.template_editor
+```
+
+或在Python代码中：
+
+```python
+from storyline.tools.template_editor import TemplateEditor
+
+# 启动编辑器
+editor = TemplateEditor()
+editor.run()
+
+# 或者直接编辑特定模板
+editor.edit_template("adventure_template")
+```
+
+## 模板格式
+
+模板采用JSON格式，基本结构如下：
+
+```json
+{
+  "template_id": "adventure_template",
+  "name": "冒险故事模板",
+  "description": "适用于野外探险类故事",
+  "version": "1.0",
+  "author": "游戏设计团队",
+  "created_at": "2025-04-08",
+  "prompt_segments": [
+    "(世界设定: 奇幻世界)",
+    "(主角职业: {character.profession})",
+    "<描述一段在{location}的冒险经历>",
+    "{story=\"*\"}",
+    "<提供三个可能的选择>",
+    "{choice1=\"*\", choice2=\"*\", choice3=\"*\"}",
+    "<描述每个选择可能的结果>",
+    "{outcome1=\"*\", outcome2=\"*\", outcome3=\"*\"}"
+  ],
+  "required_inputs": [
+    "character.profession",
+    "location"
+  ],
+  "output_format": {
+    "story": "string",
+    "choice1": "string",
+    "choice2": "string", 
+    "choice3": "string",
+    "outcome1": "string",
+    "outcome2": "string",
+    "outcome3": "string"
+  },
+  "tags": ["冒险", "探索", "奇幻"],
+  "next_templates": {
+    "choice1": ["combat_template", "puzzle_template"],
+    "choice2": ["npc_encounter_template"],
+    "choice3": ["rest_template", "travel_template"]
+  }
 }
-```
-
-## 接口设计
-
-### 对外接口
-
-- `generate_story_intro()`: 生成游戏开场故事
-- `get_current_scenario()`: 获取当前场景描述
-- `get_available_choices()`: 获取当前可用的选择列表
-- `process_player_choice(choice_id)`: 处理玩家做出的选择
-- `generate_event(context)`: 根据上下文生成随机事件
-- `generate_dialogue(character, context)`: 生成特定角色的对话
-
-### 对内接口
-
-- `_build_story_prompt(context)`: 构建故事生成提示词
-- `_evaluate_conditions(conditions)`: 评估触发条件是否满足
-- `_update_story_context(choice)`: 更新故事上下文
-- `_select_next_node(current_node, choice)`: 选择下一个故事节点
-
-## 与其他模块的交互
-
-- **属性模块**：故事情节可能受角色属性影响，也可能导致属性变化
-- **背包模块**：剧情中可能涉及物品获取、使用或失去
-- **存档模块**：需要保存当前剧情状态和分支选择历史
-
-## 待实现功能
-
-- [ ] 故事节点数据结构定义
-- [ ] 基础故事生成引擎
-- [ ] 分支选择系统
-- [ ] 条件判断系统
-- [ ] 事件触发机制
-- [ ] 与属性系统的联动 
+``` 
