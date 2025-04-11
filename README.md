@@ -50,29 +50,22 @@ AI模块提供了构建AI提示词、调用大模型API并解析JSON格式响应
 
 ### 模板编辑工具
 
-故事线模块提供了两种模板编辑工具：
+故事线模块提供模板编辑工具：
 
-1. **简化版模板编辑器（推荐）**：适配新版StorylineManager，直接使用角色属性
-   ```bash
-   python -m storyline  # 直接启动简化版编辑器
-   # 或者
-   python -m storyline.tools simplified_template_editor
-   ```
+```bash
+python -m storyline  # 直接启动编辑器
+# 或者
+python -m storyline.tools template_editor
+```
 
-   **主要特性**:
-   - 更简洁的界面设计，功能更集中
-   - 不需要定义输入变量，直接使用角色属性
-   - 集成的输出格式和存储映射配置
-   - 提示片段管理（背景信息、内容指令、输出格式）
-   - 角色属性浏览和引用
-   - 提示词处理和测试
-   - JSON预览与验证
-
-2. **旧版编辑器（遗留）**：仅适用于旧版StorylineManager
-   ```bash
-   python -m storyline.tools template_editor
-   ```
-   > **注意**: 该工具不适用于新的简化版StorylineManager，不建议继续使用
+**主要特性**:
+- 简洁的界面设计，功能集中
+- 直接使用角色属性，无需定义输入变量
+- 集成的输出格式和存储映射配置
+- 提示片段管理（背景信息、内容指令、输出格式）
+- 角色属性浏览和引用
+- 提示词处理和测试
+- JSON预览与验证
 
 ## 安装与配置
 

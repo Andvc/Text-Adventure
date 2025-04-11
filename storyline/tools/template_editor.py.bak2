@@ -142,7 +142,7 @@ class TemplateEditor:
         buttons_frame = ttk.Frame(parent)
         buttons_frame.pack(fill=tk.X, pady=(5, 0))
         
-        # 使用Grid布局实现三行按钮
+        # 使用Grid布局实现两行按钮
         buttons_frame.columnconfigure(0, weight=1)
         buttons_frame.columnconfigure(1, weight=1)
         
@@ -153,18 +153,35 @@ class TemplateEditor:
         delete_btn = ttk.Button(buttons_frame, text="删除", width=10, command=self._delete_template)
         delete_btn.grid(row=0, column=1, sticky=tk.EW, padx=3, pady=2)
         
-        # 第二行：保存和刷新按钮
-        self.save_btn = ttk.Button(buttons_frame, text="保存", width=10, command=self._save_template_new)
-        self.save_btn.grid(row=1, column=0, sticky=tk.EW, padx=3, pady=2)
+        # 第二行：保存按钮（居中）
+        self.save_btn = ttk.Button(buttons_frame, text="保存", width=12, command=self._save_template_new)
+        self.save_btn.grid(row=1, column=0, columnspan=2, pady=4)
         
-        refresh_btn = ttk.Button(buttons_frame, text="刷新", width=10, command=self._refresh_template_list)
-        refresh_btn.grid(row=1, column=1, sticky=tk.EW, padx=3, pady=2)
+        # 刷新按钮（小按钮，放在右上角）
+        refresh_btn = ttk.Button(parent, text="⟲", width=2, command=self._refresh_template_list)
+        refresh_btn.place(relx=0.96, rely=0.01, anchor="ne")
         
         # 绑定事件
         self.template_tree.bind("<<TreeviewSelect>>", self._on_template_select)
         self.template_tree.bind("<Double-1>", lambda e: self._edit_selected_template())
         
-        # 移除右键菜单绑定
+        # 右键菜单
+        self._setup_context_menu()
+    
+    def _setup_context_menu(self) -> None:
+        """设置右键菜单"""
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="编辑", command=self._edit_selected_template)
+        menu.add_command(label="复制", command=self._duplicate_template)
+        menu.add_command(label="导出", command=self._export_template)
+        menu.add_separator()
+        menu.add_command(label="删除", command=self._delete_template)
+        
+        def show_menu(event):
+            if self.template_tree.selection():
+                menu.post(event.x_root, event.y_root)
+        
+        self.template_tree.bind("<Button-3>", show_menu)
     
     def _setup_editor(self, parent: ttk.Frame) -> None:
         """设置编辑区域
@@ -486,6 +503,10 @@ class TemplateEditor:
         )
         ttk.Label(output_frame, text=explanation, wraplength=800).pack(anchor=tk.W, pady=(0, 10))
         
+        # 特殊字段提示
+        special_tip = "注意: 'content'是一个特殊的键，代表格式化后的完整故事内容。"
+        ttk.Label(output_frame, text=special_tip, font=("Arial", 9, "italic"), foreground="blue").pack(anchor=tk.W, pady=(0, 10))
+        
         # 表格区域 - 输出定义和存储映射
         table_frame = ttk.Frame(output_frame)
         table_frame.pack(fill=tk.BOTH, expand=True)
@@ -502,10 +523,20 @@ class TemplateEditor:
         self.output_editor_frame = ttk.Frame(table_frame)
         self.output_editor_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # 初始化输出条目列表
+        # 添加默认输出字段和存储映射
         self.output_entries = []
+        default_outputs = [
+            ("story", "string", "current_story"),
+            ("choice1", "string", "option1"),
+            ("choice2", "string", "option2"),
+            ("choice3", "string", "option3"),
+            ("content", "special", "story_content")
+        ]
         
-        # 添加按钮区域
+        for field_name, data_type, attr_name in default_outputs:
+            self._add_output_row(field_name, data_type, attr_name)
+        
+        # 添加新字段的区域
         add_frame = ttk.Frame(output_frame)
         add_frame.pack(fill=tk.X, pady=10)
         
@@ -529,13 +560,11 @@ class TemplateEditor:
         help_frame.pack(fill=tk.X, pady=10)
         
         help_text = (
-            "- 输出字段: 定义AI返回的JSON字段名称\n"
+            "- 输出字段: 定义AI返回的JSON字段名称，例如'story'、'choice1'等\n"
             "- 数据类型: 指定字段的数据类型，如字符串、数字等\n"
             "- 存储到属性: 指定将字段内容存储到哪个角色属性中\n"
             "- 模板执行时会自动将AI输出存储到对应的角色属性中\n"
-            "- 如果属性不存在，将自动创建；如果已存在，将被更新\n"
-            "- 主要内容一般使用'story'字段，选项通常使用'choice1'、'choice2'等\n"
-            "- 可根据需要自由添加任何输出字段和存储映射"
+            "- 如果属性不存在，将自动创建；如果已存在，将被更新"
         )
         
         help_label = ttk.Label(help_frame, text=help_text, justify=tk.LEFT, wraplength=800)
@@ -559,12 +588,12 @@ class TemplateEditor:
             field_entry.insert(0, field_name)
         
         # 数据类型
-        type_combo = ttk.Combobox(row_frame, values=["string", "number", "boolean", "array", "object"], width=15)
+        type_combo = ttk.Combobox(row_frame, values=["string", "number", "boolean", "array", "object", "special"], width=15)
         type_combo.pack(side=tk.LEFT, padx=5)
-        if data_type and data_type in ["string", "number", "boolean", "array", "object"]:
+        if data_type:
             type_combo.set(data_type)
         else:
-            type_combo.current(0)  # 默认使用string类型
+            type_combo.current(0)
         
         # 属性名
         attr_entry = ttk.Entry(row_frame, width=20)
@@ -1481,12 +1510,24 @@ class TemplateEditor:
         # 如果还有存储映射但没有对应的输出格式，也添加它们
         for field, attr_name in output_storage.items():
             if field not in output_format:
-                self._add_output_row(field, "string", attr_name)
+                if field == "content":
+                    # 特殊处理content字段
+                    self._add_output_row(field, "special", attr_name)
+        else:
+                    self._add_output_row(field, "string", attr_name)
                     
         # 如果没有任何输出字段，添加默认字段
         if not self.output_entries:
-            # 创建一个空行，让用户自行添加
-            self._add_output_row("", "", "")
+            default_outputs = [
+                ("story", "string", "current_story"),
+                ("choice1", "string", "option1"),
+                ("choice2", "string", "option2"),
+                ("choice3", "string", "option3"),
+                ("content", "special", "story_content")
+            ]
+            
+            for field_name, data_type, attr_name in default_outputs:
+                self._add_output_row(field_name, data_type, attr_name)
     
     def _build_template_data(self) -> Dict[str, Any]:
         """从编辑器构建模板数据
@@ -1514,14 +1555,12 @@ class TemplateEditor:
         
         # 提示片段
         if hasattr(self, 'segments_list'):
-            prompt_segments = list(self.segments_list.get(0, tk.END))
-            template["prompt_segments"] = prompt_segments
-        else:
-            template["prompt_segments"] = []
+        prompt_segments = list(self.segments_list.get(0, tk.END))
+        template["prompt_segments"] = prompt_segments
         
         # 输出格式和存储映射
         if hasattr(self, 'output_entries'):
-            output_format = {}
+        output_format = {}
             output_storage = {}
             
             for field_entry, type_combo, attr_entry, _ in self.output_entries:
@@ -1587,43 +1626,13 @@ class TemplateEditor:
             
         # 确保输出格式存在
         if not template.get("output_format"):
-            # 使用通用默认输出格式
-            default_output = messagebox.askyesno(
-                "无输出格式",
-                "模板没有定义输出格式。是否使用默认输出格式？\n\n" +
-                "默认格式包含：\n" +
-                "- story: 主要故事内容\n" +
-                "- choice1-3: 选项内容"
-            )
-            if default_output:
-                template["output_format"] = {
-                    "story": "string",
-                    "choice1": "string",
-                    "choice2": "string",
-                    "choice3": "string"
-                }
-            else:
-                self.notebook.select(2)  # 切换到输出选项卡
-                return
+            # 使用默认输出格式
+            template["output_format"] = {"story": "string", "choice1": "string", "choice2": "string", "choice3": "string"}
             
         # 确保存储映射存在    
-        if not template.get("output_storage") and template.get("output_format"):
-            # 使用通用默认存储映射
-            default_storage = messagebox.askyesno(
-                "无存储映射",
-                "模板没有定义存储映射。是否自动创建存储映射？\n\n" +
-                "将为每个输出字段生成对应的存储属性名。"
-            )
-            if default_storage:
-                output_storage = {}
-                # 为每个输出字段创建默认存储映射
-                for field in template["output_format"].keys():
-                    # 使用字段名作为属性名，或者类似的方式
-                    output_storage[field] = field
-                template["output_storage"] = output_storage
-            else:
-                self.notebook.select(2)  # 切换到输出选项卡
-                return
+        if not template.get("output_storage"):
+            # 使用默认存储映射
+            template["output_storage"] = {"story": "current_story", "choice1": "option1", "choice2": "option2", "choice3": "option3", "content": "story_content"}
         
         # 保存模板
         try:
@@ -1858,22 +1867,24 @@ class TemplateEditor:
         messagebox.showinfo("已复制", f"属性名 '{attr_name}' 已复制到剪贴板")
         
     def _insert_attr_to_segment(self) -> None:
-        """将选择的属性插入到当前编辑的片段"""
+        """将选中的属性插入到当前编辑的片段中"""
         selection = self.attrs_tree.selection()
         if not selection:
             return
             
-        # 获取选中的属性名
         item = selection[0]
         attr_name = self.attrs_tree.item(item, "values")[0]
         
-        # 创建要插入的文本
+        # 创建插入文本
         insert_text = "{" + attr_name + "}"
         
-        # 检查是否在片段选项卡
-        if hasattr(self, 'notebook') and self.notebook:
-            if self.notebook.select() == self.notebook.tabs()[1]:  # 第二个选项卡是提示片段
-                # 尝试在当前光标位置插入
+        # 插入到当前片段编辑器
+        if hasattr(self, 'segment_text'):
+            current_tab = self.notebook.index(self.notebook.select())
+            tab_name = self.notebook.tab(current_tab, "text")
+            
+            if tab_name == "提示片段":
+                # 获取当前光标位置
                 try:
                     position = self.segment_text.index(tk.INSERT)
                     self.segment_text.insert(position, insert_text)
@@ -1898,7 +1909,7 @@ class TemplateEditor:
         if hasattr(self, 'template_text'):
             self.template_text.delete("1.0", tk.END)
             self.template_text.insert(tk.END, default_template)
-    
+        
     def _refresh_preview(self) -> None:
         """刷新JSON预览"""
         # 构建模板数据
@@ -2163,7 +2174,7 @@ class TemplateEditor:
             
             if not self.saves_dir or not os.path.exists(self.saves_dir):
                 return
-        
+            
             # 获取所有JSON文件
             json_files = []
             for file in os.listdir(self.saves_dir):
@@ -2188,11 +2199,6 @@ class TemplateEditor:
                 
         except Exception as e:
             messagebox.showerror("错误", f"刷新存档列表失败: {str(e)}")
-
-    # 保留一个空的方法，以防其他地方调用
-    def _setup_context_menu(self) -> None:
-        """设置右键菜单 - 已移除"""
-        pass
 
 def run_editor():
     """运行模板编辑器"""

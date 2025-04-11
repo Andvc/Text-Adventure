@@ -5,7 +5,11 @@
   "version": "1.0",
   "author": "AI助手",
   "created_at": "2023-06-01",
-  "tags": ["冒险", "选择", "示例"],
+  "tags": [
+    "冒险",
+    "选择",
+    "示例"
+  ],
   "prompt_segments": [
     "(世界设定: {world_setting})",
     "(角色姓名: {name})",

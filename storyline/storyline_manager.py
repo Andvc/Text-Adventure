@@ -233,7 +233,7 @@ class StorylineManager:
             use_template_storage: 是否应用模板中定义的存储映射
             
         Returns:
-            元组 (故事内容, 选项列表, 故事ID)
+            元组 (主要内容, 选项列表, 故事ID)
         """
         # 加载模板
         template = self.load_template(template_id)
@@ -261,108 +261,75 @@ class StorylineManager:
             print(f"生成故事失败: {str(e)}")
             return "", [], ""
         
-        # 提取故事内容
-        story_content = result.get("story", "")
+        # 生成唯一ID
         story_id = str(uuid.uuid4())
         
-        # 创建选项列表
-        choices = []
-        choice_details = []
+        # 提取主要内容（从模板配置或默认使用"story"字段）
+        main_field = template.get("main_content_field", "story")
+        main_content = result.get(main_field, "")
         
-        for i in range(1, 10):  # 支持最多9个选择
-            choice_key = f"choice{i}"
-            outcome_key = f"outcome{i}"
-            
-            if choice_key not in result:
-                break
+        # 收集所有选项
+        choices = []
+        
+        # 从result中找出所有以"choice"开头的字段
+        choice_fields = [k for k in result.keys() if k.startswith("choice") and k[6:].isdigit()]
+        choice_fields.sort(key=lambda x: int(x[6:]))  # 按数字排序
+        
+        for i, choice_field in enumerate(choice_fields):
+            choice_text = result[choice_field]
+            if not choice_text:
+                continue
                 
-            # 处理属性变化
-            stat_changes = {}
-            stat_change_key = f"stat_change{i}"
-            
-            if stat_change_key in result:
-                try:
-                    stat_text = result[stat_change_key]
-                    changes = stat_text.split("，")
-                    for change in changes:
-                        for attr_name in ["力量", "敏捷", "智力", "体质", "魅力"]:
-                            if attr_name in change:
-                                parts = change.split(attr_name)
-                                if len(parts) > 1:
-                                    value_part = parts[1].strip()
-                                    if value_part.startswith("+") or value_part.startswith("-"):
-                                        try:
-                                            value = int(value_part[0:2])
-                                            stat_changes[attr_name] = value
-                                        except ValueError:
-                                            pass
-                except Exception as e:
-                    print(f"处理属性变化失败: {str(e)}")
-            
-            # 添加选项
             choices.append({
-                "id": i-1,
-                "text": result[choice_key],
-                "outcome": result.get(outcome_key, "")
-            })
-            
-            choice_details.append({
-                "id": choice_key,
-                "text": result[choice_key],
-                "outcome": result.get(outcome_key, ""),
-                "stat_changes": stat_changes
+                "id": i,
+                "text": choice_text,
+                "field": choice_field  # 记录原始字段名，用于后续处理
             })
         
         # 存储故事记录
         self.story_history[story_id] = {
             "template_id": template_id,
-            "content": story_content,
-            "choices": choice_details,
+            "content": main_content,
+            "choices": choices,
             "raw_result": result,
             "generated_at": time.time()
         }
         
         # 存储输出到角色属性
         if use_template_storage and "output_storage" in template and CHARACTER_MODULE_AVAILABLE:
-            self._apply_storage_mapping(result, story_content, template["output_storage"])
+            self._apply_storage_mapping(result, template["output_storage"])
         
-        return story_content, choices, story_id
+        return main_content, choices, story_id
     
-    def _apply_storage_mapping(self, result: Dict[str, Any], story_content: str, mapping: Dict[str, str]) -> None:
+    def _apply_storage_mapping(self, result: Dict[str, Any], mapping: Dict[str, str]) -> None:
         """应用存储映射，将输出存储到角色属性
         
         Args:
             result: AI输出结果
-            story_content: 格式化的故事内容
             mapping: 存储映射 {输出字段: 属性名}
         """
         if not CHARACTER_MODULE_AVAILABLE:
             return
             
         for output_field, attr_name in mapping.items():
-            # 处理特殊字段"content"
-            if output_field == "content":
-                value = story_content
-            # 处理普通输出字段
-            elif output_field in result:
+            # 如果结果中存在映射的字段，则存储到对应属性
+            if output_field in result:
                 value = result[output_field]
-            else:
-                continue
-            
-            # 存储或更新属性
-            try:
-                current_value = character_manager.get_attribute(attr_name)
-                if current_value is not None:
-                    character_manager.set_attribute(attr_name, value)
-                    print(f"更新属性: {attr_name}")
-                else:
-                    character_manager.create_attribute(attr_name, value)
-                    print(f"创建属性: {attr_name}")
-            except Exception as e:
-                print(f"存储属性失败 {attr_name}: {str(e)}")
+                
+                # 存储或更新属性
+                try:
+                    current_value = character_manager.get_attribute(attr_name)
+                    if current_value is not None:
+                        character_manager.set_attribute(attr_name, value)
+                        print(f"更新属性: {attr_name}")
+                    else:
+                        character_manager.create_attribute(attr_name, value)
+                        print(f"创建属性: {attr_name}")
+                except Exception as e:
+                    print(f"存储属性失败 {attr_name}: {str(e)}")
     
     def make_choice(self, story_id: str, choice_index: int) -> None:
-        """执行选择，应用属性变化
+        """执行选择
         
         Args:
             story_id: 故事ID
@@ -385,21 +352,16 @@ class StorylineManager:
         # 获取选择
         choice = choices[choice_index]
         
-        # 应用属性变化
-        if CHARACTER_MODULE_AVAILABLE and "stat_changes" in choice and choice["stat_changes"]:
-            for attr_name, change_value in choice["stat_changes"].items():
-                try:
-                    current_value = character_manager.get_attribute(attr_name)
-                    if isinstance(current_value, (int, float)):
-                        character_manager.set_attribute(attr_name, current_value + change_value)
-                        print(f"更新属性 {attr_name}: {current_value} -> {current_value + change_value}")
-                except Exception as e:
-                    print(f"无法更新属性 {attr_name}: {str(e)}")
-        
-        # 记录选择
+        # 如果模板需要手动存储选择，则将选择存入事件选择字段
         if CHARACTER_MODULE_AVAILABLE:
-            character_manager.set_attribute("last_choice", choice["text"])
-            character_manager.set_attribute("last_story", story_data["content"])
+            try:
+                character_manager.set_attribute("事件选择", choice["text"])
+                print(f"更新事件选择: {choice['text']}")
+            except Exception as e:
+                print(f"设置事件选择失败: {str(e)}")
+                
+        # 记录选择到历史
+        story_data["selected_choice"] = choice
     
     def get_story(self, story_id: str) -> Optional[Dict[str, Any]]:
         """获取故事记录
