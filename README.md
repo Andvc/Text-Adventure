@@ -12,6 +12,8 @@ Text Adventure/
 ├── save/              # 游戏存档目录
 ├── .env               # 环境变量配置
 ├── test_integration.py # 集成测试程序
+├── test_simple_loop_cycle.py # simple_loop模板循环测试
+├── test_adventure_template.py # adventure_template模板测试
 └── README.md          # 本文档
 ```
 
