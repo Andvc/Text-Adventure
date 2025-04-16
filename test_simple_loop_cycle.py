@@ -44,10 +44,7 @@ class SimpleLoopTester:
         
         # 循环计数
         self.loop_count = 0
-        
-        # 输出缓存
-        self.output_cache = {}
-        
+    
     def print_header(self, text, width=80):
         """打印带框的标题"""
         print("\n" + "=" * width)
@@ -70,37 +67,74 @@ class SimpleLoopTester:
         self.print_section("可选选项", "请选择一个选项：")
         
         for i, choice in enumerate(choices):
-            print(f"  [{i+1}] {choice['text']}")
+            print(f"  [{i+1}] {choice}")
     
     def print_status(self):
         """打印当前状态"""
         self.print_section("当前状态", "角色信息和故事状态：")
         
-        # 获取关键属性
-        name = get_attribute("姓名")
-        world = get_attribute("世界")
-        level = get_attribute("境界")
-        story_summary = get_attribute("故事梗概")
-        current_event = get_attribute("当前事件")
-        last_choice = get_attribute("事件选择")
+        # 获取所有属性
+        all_attrs = get_all_attributes()
         
-        # 显示基本信息
-        print(f"  角色: {name}  |  世界: {world}  |  境界: {level}")
+        # 显示关键属性（如果存在）
+        basic_info = []
+        if "姓名" in all_attrs:
+            basic_info.append(f"角色: {all_attrs['姓名']}")
+        if "世界" in all_attrs:
+            basic_info.append(f"世界: {all_attrs['世界']}")
+        if "境界" in all_attrs:
+            basic_info.append(f"境界: {all_attrs['境界']}")
         
-        # 显示故事信息
-        print("\n  【故事梗概】")
-        wrapped_summary = textwrap.fill(story_summary, width=76)
-        for line in wrapped_summary.split('\n'):
-            print(f"  {line}")
+        # 打印基本信息
+        if basic_info:
+            print("  " + "  |  ".join(basic_info))
         
-        print("\n  【当前事件】")
-        wrapped_event = textwrap.fill(current_event, width=76)
-        for line in wrapped_event.split('\n'):
-            print(f"  {line}")
+        # 打印故事信息
+        if "故事梗概" in all_attrs:
+            print("\n  【故事梗概】")
+            wrapped_summary = textwrap.fill(all_attrs["故事梗概"], width=76)
+            for line in wrapped_summary.split('\n'):
+                print(f"  {line}")
         
-        if last_choice:
+        if "当前事件" in all_attrs:
+            print("\n  【当前事件】")
+            wrapped_event = textwrap.fill(all_attrs["当前事件"], width=76)
+            for line in wrapped_event.split('\n'):
+                print(f"  {line}")
+        
+        if "事件选择" in all_attrs and all_attrs["事件选择"]:
             print("\n  【上次选择】")
-            print(f"  {last_choice}")
+            print(f"  {all_attrs['事件选择']}")
+    
+    def get_choice_options(self):
+        """从角色属性中获取选项"""
+        all_attrs = get_all_attributes()
+        choices = []
+        
+        # 首先尝试最常见的选项属性命名
+        option_names = ["选项1", "选项2", "选项3", "option1", "option2", "option3"]
+        
+        for name in option_names:
+            if name in all_attrs and all_attrs[name]:
+                choices.append(all_attrs[name])
+        
+        # 如果没有找到标准命名的选项，尝试查找其他可能的选项属性
+        if not choices:
+            # 查找所有包含"选项"、"option"或"choice"的属性
+            for name, value in all_attrs.items():
+                if (("选项" in name or "option" in name.lower() or "choice" in name.lower()) 
+                    and value and isinstance(value, str) 
+                    and name not in ["事件选择", "last_choice"]):
+                    choices.append(value)
+        
+        # 如果还是找不到，将所有包含关键词的属性名打印出来，帮助调试
+        if not choices:
+            print("\n未找到选项属性。正在检查所有属性:")
+            for name, value in all_attrs.items():
+                print(f"  - {name}: {type(value).__name__}{'，有值' if value else '，无值'}")
+            print("\n提示: 请确保模板的output_storage将choice1/choice2/choice3映射到角色属性")
+        
+        return choices
     
     def run_single_loop(self):
         """运行单次循环"""
@@ -116,17 +150,27 @@ class SimpleLoopTester:
         try:
             self.print_section("生成故事", "正在使用simple_loop模板生成故事...")
             
-            story_content, choices, story_id = self.manager.generate_story("simple_loop")
+            # 生成故事（将会存储到角色属性中）
+            _, _, _ = self.manager.generate_story("simple_loop")
             
-            # 缓存输出以备使用
-            self.output_cache = {
-                "story_content": story_content,
-                "choices": choices,
-                "story_id": story_id
-            }
+            # 直接从角色属性中获取当前故事
+            current_story = get_attribute("当前事件")
+            if not current_story:
+                raise ValueError("生成故事失败：未找到'当前事件'属性")
             
-            # 显示生成的故事
-            self.print_section("故事内容", story_content)
+            # 显示故事内容
+            self.print_section("故事内容", current_story)
+            
+            # 从角色属性中获取选项
+            choices = self.get_choice_options()
+            if not choices:
+                # 如果没有找到选项，尝试生成一些默认选项
+                print("\n警告：未找到选项属性，使用默认选项继续")
+                choices = [
+                    "继续探索这个神秘空间",
+                    "尝试退出这个神秘空间",
+                    "思考下一步行动"
+                ]
             
             # 显示选项
             self.print_choices(choices)
@@ -145,21 +189,25 @@ class SimpleLoopTester:
             
             # 确认用户选择
             selected_choice = choices[choice_index]
-            print(f"\n你选择了: {selected_choice['text']}")
+            print(f"\n你选择了: {selected_choice}")
             
-            # 执行选择（这会自动更新当前事件等属性）
-            self.manager.make_choice(story_id, choice_index)
-            
-            # 确保事件选择字段已更新（以防模板没有做这个更新）
-            set_attribute("事件选择", selected_choice['text'])
-            
+            # 直接将选择存储到事件选择属性
+            set_attribute("事件选择", selected_choice)
             print("\n选择已记录，属性已更新。")
             
             # 显示更新后的状态
             self.print_section("更新后状态", "属性已更新:")
-            print(f"  当前事件: {get_attribute('当前事件')[:100]}...")
-            print(f"  事件选择: {get_attribute('事件选择')}")
-            print(f"  故事梗概: {get_attribute('故事梗概')[:100]}...")
+            
+            # 直接显示更新后的关键属性
+            all_attrs = get_all_attributes()
+            if "当前事件" in all_attrs:
+                event_preview = all_attrs["当前事件"][:100] + "..." if len(all_attrs["当前事件"]) > 100 else all_attrs["当前事件"]
+                print(f"  当前事件: {event_preview}")
+            if "事件选择" in all_attrs:
+                print(f"  事件选择: {all_attrs['事件选择']}")
+            if "故事梗概" in all_attrs:
+                summary_preview = all_attrs["故事梗概"][:100] + "..." if len(all_attrs["故事梗概"]) > 100 else all_attrs["故事梗概"]
+                print(f"  故事梗概: {summary_preview}")
             
             return True
             
@@ -194,16 +242,8 @@ class SimpleLoopTester:
             if not success:
                 break
                 
-            # 询问是否继续
-            while True:
-                answer = input("\n是否继续下一轮循环？(y/n): ").lower()
-                if answer in ['y', 'yes', 'n', 'no']:
-                    break
-                print("请输入y或n")
-                
-            if answer in ['n', 'no']:
-                print("用户选择终止循环")
-                break
+            # 自动继续下一轮循环，不询问用户
+            print("\n自动继续下一轮循环...")
         
         # 测试完成
         self.print_header("测试完成")

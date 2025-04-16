@@ -24,11 +24,17 @@
   ],
   "output_format": {
     "story": "string",
-    "content": "string"
+    "content": "string",
+    "choice1": "string",
+    "choice2": "string",
+    "choice3": "string"
   },
   "output_storage": {
     "story": "当前事件",
-    "content": "故事梗概"
+    "content": "故事梗概",
+    "choice1": "选项1",
+    "choice2": "选项2",
+    "choice3": "选项3"
   },
   "prompt_template": "你是一个高级故事生成AI，请根据以下提示创建故事内容。\n\n## 背景信息\n{background}\n\n## 内容要求\n{content}\n\n## 输出格式\n请严格按照以下JSON格式回复：\n{format}"
 }

@@ -55,9 +55,6 @@ class StorylineManager:
         # 加载模板缓存
         self._templates_cache = {}
         self._load_all_templates()
-        
-        # 当前会话故事记录
-        self.story_history = {}
     
     def _load_all_templates(self) -> None:
         """加载所有可用的模板"""
@@ -261,7 +258,7 @@ class StorylineManager:
             print(f"生成故事失败: {str(e)}")
             return "", [], ""
         
-        # 生成唯一ID
+        # 生成唯一ID（用于API返回值）
         story_id = str(uuid.uuid4())
         
         # 提取主要内容（从模板配置或默认使用"story"字段）
@@ -285,15 +282,6 @@ class StorylineManager:
                 "text": choice_text,
                 "field": choice_field  # 记录原始字段名，用于后续处理
             })
-        
-        # 存储故事记录
-        self.story_history[story_id] = {
-            "template_id": template_id,
-            "content": main_content,
-            "choices": choices,
-            "raw_result": result,
-            "generated_at": time.time()
-        }
         
         # 存储输出到角色属性
         if use_template_storage and "output_storage" in template and CHARACTER_MODULE_AVAILABLE:
@@ -329,88 +317,40 @@ class StorylineManager:
                     print(f"存储属性失败 {attr_name}: {str(e)}")
     
     def make_choice(self, story_id: str, choice_index: int) -> None:
-        """执行选择
+        """执行选择（简化版本，仅更新事件选择属性）
         
         Args:
-            story_id: 故事ID
+            story_id: 故事ID（为兼容旧代码保留此参数，但不再使用）
             choice_index: 选择索引（从0开始）
         """
-        # 检查故事ID
-        if story_id not in self.story_history:
-            print(f"故事ID {story_id} 不存在")
+        # 由于不再使用story_history，只需从角色属性中获取选项并更新事件选择
+        if not CHARACTER_MODULE_AVAILABLE:
+            print("角色模块不可用，无法更新选择")
             return
             
-        # 获取故事记录
-        story_data = self.story_history[story_id]
-        choices = story_data.get("choices", [])
+        # 尝试从属性中获取选项列表
+        # 检查常见的选项属性命名
+        all_attrs = character_manager.get_all_attributes()
+        options = []
+        
+        # 扫描可能的选项属性
+        option_names = ["选项1", "选项2", "选项3", "option1", "option2", "option3"]
+        for name in option_names:
+            if name in all_attrs and all_attrs[name]:
+                options.append(all_attrs[name])
         
         # 验证选择索引
-        if choice_index < 0 or choice_index >= len(choices):
-            print(f"无效的选择索引: {choice_index}")
+        if not options:
+            print("未找到选项属性")
             return
             
-        # 获取选择
-        choice = choices[choice_index]
+        if choice_index < 0 or choice_index >= len(options):
+            print(f"无效的选择索引: {choice_index}")
+            return
         
-        # 如果模板需要手动存储选择，则将选择存入事件选择字段
-        if CHARACTER_MODULE_AVAILABLE:
-            try:
-                character_manager.set_attribute("事件选择", choice["text"])
-                print(f"更新事件选择: {choice['text']}")
-            except Exception as e:
-                print(f"设置事件选择失败: {str(e)}")
-                
-        # 记录选择到历史
-        story_data["selected_choice"] = choice
-    
-    def get_story(self, story_id: str) -> Optional[Dict[str, Any]]:
-        """获取故事记录
-        
-        Args:
-            story_id: 故事ID
-            
-        Returns:
-            故事记录，如果不存在则返回None
-        """
-        return self.story_history.get(story_id)
-        
-    def clear_history(self) -> None:
-        """清除所有故事历史记录"""
-        self.story_history = {}
-        print("已清除所有故事历史记录")
-    
-    def save_history_to_file(self, filepath: str) -> bool:
-        """将故事历史记录保存到文件
-        
-        Args:
-            filepath: 保存路径
-            
-        Returns:
-            保存是否成功
-        """
+        # 更新事件选择属性
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(self.story_history, f, ensure_ascii=False, indent=2)
-            return True
+            character_manager.set_attribute("事件选择", options[choice_index])
+            print(f"更新事件选择: {options[choice_index]}")
         except Exception as e:
-            print(f"保存历史记录失败: {str(e)}")
-            return False
-    
-    def load_history_from_file(self, filepath: str) -> bool:
-        """从文件加载故事历史记录
-        
-        Args:
-            filepath: 文件路径
-            
-        Returns:
-            加载是否成功
-        """
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                history = json.load(f)
-            
-            self.story_history = history
-            return True
-        except Exception as e:
-            print(f"加载历史记录失败: {str(e)}")
-            return False
+            print(f"设置事件选择失败: {str(e)}")
