@@ -79,7 +79,7 @@ next_story = manager.choose_branch(story, choice_index=1)
 
 ```bash
 # 启动模板编辑器
-python -m storyline.tools.template_editor
+python3 -m storyline.tools.template_editor
 ```
 
 或在Python代码中：

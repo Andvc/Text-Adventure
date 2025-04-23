@@ -11,66 +11,8 @@ from collections import defaultdict
 # 临时添加父目录到系统路径，以便导入save模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# TODO: 替换为实际的存档系统导入
-# from save import save_manager
-
-# 临时实现的存档系统接口
-class TempSaveSystem:
-    def __init__(self, save_dir=None, save_file=None):
-        # 修改数据结构，添加属性分类
-        self._save_data = {
-            "角色数据": {},  # 属性值
-            "属性类别": {}   # 属性类别
-        }
-        
-        # 设置存档目录和文件位置
-        if save_dir is None:
-            save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "save")
-        
-        if save_file is None:
-            self._save_file = os.path.join(save_dir, "temp_save.json")
-        else:
-            self._save_file = os.path.join(save_dir, save_file)
-            
-        self._load_save()
-    
-    def _load_save(self):
-        try:
-            if os.path.exists(self._save_file):
-                with open(self._save_file, 'r', encoding='utf-8') as f:
-                    self._save_data = json.load(f)
-                    if "角色数据" not in self._save_data:
-                        self._save_data["角色数据"] = {}
-                    # 确保属性类别数据存在
-                    if "属性类别" not in self._save_data:
-                        self._save_data["属性类别"] = {}
-        except Exception as e:
-            print(f"加载存档失败: {str(e)}")
-            self._save_data = {"角色数据": {}, "属性类别": {}}
-    
-    def _save_data_to_file(self):
-        try:
-            os.makedirs(os.path.dirname(self._save_file), exist_ok=True)
-            with open(self._save_file, 'w', encoding='utf-8') as f:
-                json.dump(self._save_data, f, ensure_ascii=False, indent=4)
-            return True
-        except Exception as e:
-            print(f"保存存档失败: {str(e)}")
-            return False
-    
-    def get_current_save_data(self):
-        return self._save_data
-    
-    def update_save_data(self, save_data):
-        self._save_data = save_data
-        return self._save_data_to_file()
-    
-    def get_save_file_path(self):
-        """返回当前使用的存档文件路径"""
-        return self._save_file
-
-# 使用临时存档系统
-save_system = TempSaveSystem()
+# 导入save_manager模块
+from save import save_manager
 
 # 配置存档系统的函数
 def configure_save_system(save_dir=None, save_file=None):
@@ -82,11 +24,9 @@ def configure_save_system(save_dir=None, save_file=None):
         save_file (str): 存档文件名称
         
     返回:
-        TempSaveSystem: 配置好的存档系统实例
+        SaveManager: 配置好的存档管理器
     """
-    global save_system
-    save_system = TempSaveSystem(save_dir, save_file)
-    return save_system
+    return save_manager.configure_save_system(save_dir, save_file)
 
 def create_attribute(attr_name, attr_value, attr_category=None):
     """
@@ -101,19 +41,19 @@ def create_attribute(attr_name, attr_value, attr_category=None):
         bool: 是否创建成功
     """
     try:
-        save_data = save_system.get_current_save_data()
-        if attr_name in save_data["角色数据"]:
+        save_data = save_manager.get_current_save_data()
+        if attr_name in save_data["attributes"]:
             print(f"属性 '{attr_name}' 已存在，无法创建")
             return False
         
         # 存储属性值
-        save_data["角色数据"][attr_name] = attr_value
+        save_data["attributes"][attr_name] = attr_value
         
         # 存储属性类别（如果提供）
         if attr_category is not None:
-            save_data["属性类别"][attr_name] = attr_category
+            save_data["attribute_categories"][attr_name] = attr_category
             
-        return save_system.update_save_data(save_data)
+        return save_manager.update_save_data(save_data)
     except Exception as e:
         print(f"创建属性 '{attr_name}' 失败: {str(e)}")
         return False
@@ -121,19 +61,19 @@ def create_attribute(attr_name, attr_value, attr_category=None):
 def delete_attribute(attr_name):
     """删除一个角色属性"""
     try:
-        save_data = save_system.get_current_save_data()
-        if attr_name not in save_data["角色数据"]:
+        save_data = save_manager.get_current_save_data()
+        if attr_name not in save_data["attributes"]:
             print(f"属性 '{attr_name}' 不存在，无法删除")
             return False
         
         # 删除属性值
-        del save_data["角色数据"][attr_name]
+        del save_data["attributes"][attr_name]
         
         # 同时删除属性类别（如果存在）
-        if attr_name in save_data["属性类别"]:
-            del save_data["属性类别"][attr_name]
+        if attr_name in save_data["attribute_categories"]:
+            del save_data["attribute_categories"][attr_name]
             
-        return save_system.update_save_data(save_data)
+        return save_manager.update_save_data(save_data)
     except Exception as e:
         print(f"删除属性 '{attr_name}' 失败: {str(e)}")
         return False
@@ -141,8 +81,8 @@ def delete_attribute(attr_name):
 def get_attribute(attr_name):
     """获取指定属性的值"""
     try:
-        save_data = save_system.get_current_save_data()
-        return save_data["角色数据"].get(attr_name, None)
+        save_data = save_manager.get_current_save_data()
+        return save_data["attributes"].get(attr_name, None)
     except Exception as e:
         print(f"获取属性 '{attr_name}' 失败: {str(e)}")
         return None
@@ -150,9 +90,9 @@ def get_attribute(attr_name):
 def set_attribute(attr_name, attr_value):
     """设置指定属性的值"""
     try:
-        save_data = save_system.get_current_save_data()
-        save_data["角色数据"][attr_name] = attr_value
-        return save_system.update_save_data(save_data)
+        save_data = save_manager.get_current_save_data()
+        save_data["attributes"][attr_name] = attr_value
+        return save_manager.update_save_data(save_data)
     except Exception as e:
         print(f"设置属性 '{attr_name}' 失败: {str(e)}")
         return False
@@ -160,8 +100,8 @@ def set_attribute(attr_name, attr_value):
 def list_attributes():
     """列出所有已定义的属性"""
     try:
-        save_data = save_system.get_current_save_data()
-        return list(save_data["角色数据"].keys())
+        save_data = save_manager.get_current_save_data()
+        return list(save_data["attributes"].keys())
     except Exception as e:
         print(f"列出属性失败: {str(e)}")
         return []
@@ -169,17 +109,17 @@ def list_attributes():
 def get_all_attributes():
     """获取所有属性及其值"""
     try:
-        save_data = save_system.get_current_save_data()
-        return dict(save_data["角色数据"])
+        save_data = save_manager.get_current_save_data()
+        return dict(save_data["attributes"])
     except Exception as e:
         print(f"获取所有属性失败: {str(e)}")
         return {}
 
 def get_save_location():
     """获取当前存档文件的位置"""
-    return save_system.get_save_file_path()
+    return save_manager.get_save_file_path()
 
-# 新增：获取属性类别功能
+# 获取属性类别功能
 def get_attribute_category(attr_name):
     """
     获取指定属性的类别
@@ -191,13 +131,13 @@ def get_attribute_category(attr_name):
         str: 属性类别，如果属性不存在或没有设置类别则返回None
     """
     try:
-        save_data = save_system.get_current_save_data()
-        return save_data["属性类别"].get(attr_name, None)
+        save_data = save_manager.get_current_save_data()
+        return save_data["attribute_categories"].get(attr_name, None)
     except Exception as e:
         print(f"获取属性 '{attr_name}' 的类别失败: {str(e)}")
         return None
 
-# 新增：设置属性类别功能
+# 设置属性类别功能
 def set_attribute_category(attr_name, category):
     """
     设置指定属性的类别
@@ -210,18 +150,18 @@ def set_attribute_category(attr_name, category):
         bool: 是否设置成功
     """
     try:
-        save_data = save_system.get_current_save_data()
-        if attr_name not in save_data["角色数据"]:
+        save_data = save_manager.get_current_save_data()
+        if attr_name not in save_data["attributes"]:
             print(f"属性 '{attr_name}' 不存在，无法设置类别")
             return False
             
-        save_data["属性类别"][attr_name] = category
-        return save_system.update_save_data(save_data)
+        save_data["attribute_categories"][attr_name] = category
+        return save_manager.update_save_data(save_data)
     except Exception as e:
         print(f"设置属性 '{attr_name}' 的类别失败: {str(e)}")
         return False
 
-# 新增：获取指定类别的所有属性
+# 获取指定类别的所有属性
 def get_attributes_by_category(category):
     """
     获取指定类别的所有属性名称
@@ -233,10 +173,10 @@ def get_attributes_by_category(category):
         list: 该类别下的所有属性名称列表
     """
     try:
-        save_data = save_system.get_current_save_data()
+        save_data = save_manager.get_current_save_data()
         result = []
         
-        for attr_name, attr_category in save_data["属性类别"].items():
+        for attr_name, attr_category in save_data["attribute_categories"].items():
             if attr_category == category:
                 result.append(attr_name)
                 
@@ -245,7 +185,7 @@ def get_attributes_by_category(category):
         print(f"获取类别 '{category}' 的属性失败: {str(e)}")
         return []
 
-# 新增：计算指定类别的属性数量
+# 计算指定类别的属性数量
 def count_attributes_by_category(category):
     """
     计算指定类别的属性数量
@@ -263,7 +203,7 @@ def count_attributes_by_category(category):
         print(f"计算类别 '{category}' 的属性数量失败: {str(e)}")
         return 0
 
-# 新增：获取指定类别的第N个属性
+# 获取指定类别的第N个属性
 def get_attribute_by_index(category, index):
     """
     获取指定类别的第N个属性值
@@ -288,7 +228,7 @@ def get_attribute_by_index(category, index):
         print(f"获取类别 '{category}' 的第 {index} 个属性失败: {str(e)}")
         return None, None
 
-# 新增：列出所有可用的属性类别
+# 列出所有可用的属性类别
 def list_categories():
     """
     列出所有已使用的属性类别
@@ -297,14 +237,14 @@ def list_categories():
         list: 所有使用过的类别名称列表
     """
     try:
-        save_data = save_system.get_current_save_data()
-        categories = set(save_data["属性类别"].values())
+        save_data = save_manager.get_current_save_data()
+        categories = set(save_data["attribute_categories"].values())
         return list(categories)
     except Exception as e:
         print(f"列出属性类别失败: {str(e)}")
         return []
 
-# 新增：快速创建某类别的新属性（自动生成属性名）
+# 快速创建某类别的新属性（自动生成属性名）
 def create_category_attribute(attr_value, category):
     """
     快速创建某类别的新属性，自动生成属性名
@@ -344,7 +284,7 @@ def create_category_attribute(attr_value, category):
         print(f"快速创建类别 '{category}' 的新属性失败: {str(e)}")
         return None
 
-# 新增：提取物品特定属性的辅助函数
+# 提取物品特定属性的辅助函数
 def get_item_property(item_name, property_name, default=None):
     """
     提取物品的特定属性值，支持嵌套字典
@@ -382,7 +322,7 @@ def get_item_property(item_name, property_name, default=None):
         print(f"提取物品 '{item_name}' 的 '{property_name}' 特性失败: {str(e)}")
         return default
 
-# 新增：搜索特定特性值的物品
+# 搜索特定特性值的物品
 def search_items_by_property(category, property_name, property_value):
     """
     在指定类别中搜索具有特定特性值的物品
@@ -413,4 +353,96 @@ def search_items_by_property(category, property_name, property_value):
         return matching_items
     except Exception as e:
         print(f"搜索特性为 '{property_name}={property_value}' 的物品失败: {str(e)}")
-        return [] 
+        return []
+
+# 多存档管理功能
+def list_saves():
+    """
+    列出所有可用的存档
+    
+    返回:
+        list: 存档名称列表
+    """
+    return save_manager.list_saves()
+
+def create_save(save_name, character_name="", description=""):
+    """
+    创建新存档
+    
+    参数:
+        save_name (str): 存档名称
+        character_name (str): 角色名称
+        description (str): 存档描述
+    
+    返回:
+        bool: 是否创建成功
+    """
+    return save_manager.create_save(save_name, character_name, description)
+
+def load_save(save_name):
+    """
+    加载指定的存档
+    
+    参数:
+        save_name (str): 存档名称
+    
+    返回:
+        bool: 是否加载成功
+    """
+    return save_manager.load_save(save_name)
+
+def delete_save(save_name):
+    """
+    删除指定的存档
+    
+    参数:
+        save_name (str): 存档名称
+    
+    返回:
+        bool: 是否删除成功
+    """
+    return save_manager.delete_save(save_name)
+
+def rename_save(old_name, new_name):
+    """
+    重命名存档
+    
+    参数:
+        old_name (str): 原存档名称
+        new_name (str): 新存档名称
+    
+    返回:
+        bool: 是否重命名成功
+    """
+    return save_manager.rename_save(old_name, new_name)
+
+def get_current_save_name():
+    """
+    获取当前存档名称
+    
+    返回:
+        str: 当前存档名称
+    """
+    return save_manager.get_current_save_name()
+
+def get_save_metadata():
+    """
+    获取当前存档的元数据
+    
+    返回:
+        dict: 存档元数据
+    """
+    return save_manager.get_save_metadata()
+
+def update_save_metadata(key, value):
+    """
+    更新存档元数据的特定字段
+    
+    参数:
+        key (str): 元数据字段名
+        value: 字段值
+    
+    返回:
+        bool: 是否更新成功
+    """
+    return save_manager.update_save_metadata(key, value) 
