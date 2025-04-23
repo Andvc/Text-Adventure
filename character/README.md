@@ -486,17 +486,68 @@ create_save(save_name, character_name="", description="")
 load_save(save_name)
 ```
 
-加载指定名称的存档。
+加载指定的存档，会将当前的活动存档切换到所选存档。
 
 - **参数**:
   - `save_name`: 存档名称
 - **返回值**:
   - 加载成功返回`True`
-  - 失败返回`False`
+  - 如果存档不存在，返回`False`
 
 - **示例**:
   ```python
-  load_save("勇者的旅程")
+  load_save("角色1")  # 切换到"角色1"存档
+  ```
+
+### 加载上次存档
+
+```python
+load_previous_game()
+```
+
+加载上次使用的游戏存档。这个函数可以在游戏启动时调用，以便自动加载上次玩家使用的存档。
+
+- **返回值**:
+  - 加载成功返回`True`
+  - 如果上次存档不存在或无效，返回`False`
+
+- **示例**:
+  ```python
+  # 游戏启动代码
+  if load_previous_game():
+      print("已加载上次游戏存档")
+  else:
+      print("无法加载上次存档，请创建新存档或选择现有存档")
+      # 显示存档选择界面
+  ```
+
+- **工作原理**:
+  - 在创建、加载或重命名存档时，系统会自动记录当前存档名称到配置文件
+  - 加载上次存档时，系统会从配置文件读取上次使用的存档名称，然后尝试加载该存档
+
+### 从指定存档读取属性
+
+```python
+get_attribute_from_save(save_name, attr_name, default=None)
+```
+
+从指定存档中读取属性值，不改变当前活动存档。这对于需要在不切换当前存档的情况下访问其他存档数据非常有用。
+
+- **参数**:
+  - `save_name`: 要读取的存档名称
+  - `attr_name`: 要读取的属性名称
+  - `default`: (可选) 如果属性不存在时返回的默认值
+- **返回值**:
+  - 属性值，如不存在则返回默认值
+
+- **示例**:
+  ```python
+  # 当前活动存档是"角色1"，但想读取"角色2"的某个属性
+  level = get_attribute_from_save("角色2", "等级", 0)  # 读取角色2的等级，默认值为0
+  print(f"角色2的等级是: {level}")
+  
+  # 不会改变当前活动存档，后续操作仍在"角色1"存档上进行
+  current_name = get_attribute("姓名")  # 返回角色1的姓名
   ```
 
 ### 删除存档
@@ -505,17 +556,17 @@ load_save(save_name)
 delete_save(save_name)
 ```
 
-删除指定名称的存档。
+删除指定的存档。
 
 - **参数**:
   - `save_name`: 存档名称
 - **返回值**:
   - 删除成功返回`True`
-  - 失败返回`False`
+  - 如果存档不存在，返回`False`
 
 - **示例**:
   ```python
-  delete_save("旧存档")
+  delete_save("旧角色")  # 删除"旧角色"存档
   ```
 
 ### 重命名存档
@@ -590,31 +641,6 @@ update_save_metadata(key, value)
 - **示例**:
   ```python
   update_save_metadata("character_name", "新名称")
-  ```
-
-### 从指定存档读取属性
-
-```python
-get_attribute_from_save(save_name, attr_name, default=None)
-```
-
-从指定存档中读取属性值，不改变当前活动存档。这对于需要在不切换当前存档的情况下访问其他存档数据非常有用。
-
-- **参数**:
-  - `save_name`: 要读取的存档名称
-  - `attr_name`: 要读取的属性名称
-  - `default`: (可选) 如果属性不存在时返回的默认值
-- **返回值**:
-  - 属性值，如不存在则返回默认值
-
-- **示例**:
-  ```python
-  # 当前活动存档是"角色1"，但想读取"角色2"的某个属性
-  level = get_attribute_from_save("角色2", "等级", 0)  # 读取角色2的等级，默认值为0
-  print(f"角色2的等级是: {level}")
-  
-  # 不会改变当前活动存档，后续操作仍在"角色1"存档上进行
-  current_name = get_attribute("姓名")  # 返回角色1的姓名
   ```
 
 ## 使用示例

@@ -238,6 +238,7 @@ save模块设计为底层存储服务，可被多个上层模块使用：
 
 - `character_manager`模块：使用save_manager存储角色属性数据
   - 大部分功能是对save_manager接口的封装或扩展
+  - `get_attribute_from_save`函数使用`read_save_data`实现跨存档数据访问
   - 提供了针对角色数据的特定业务逻辑（属性分类、物品管理等）
 - 未来可能的其他模块：任务系统、成就系统等
 
@@ -255,6 +256,39 @@ save_manager作为底层存储引擎，主要负责：
 3. 用户友好的接口提供
 
 这种分层设计使得系统更加模块化，每个部分专注于自身职责。
+
+### 存档记忆功能
+
+save_manager模块提供了存档记忆功能，能够记住上次使用的存档，并在下次启动时自动加载：
+
+```python
+load_previous_save()
+```
+加载上次使用的存档。
+
+**示例**:
+```python
+# 程序启动时加载上次使用的存档
+save_manager.load_previous_save()
+```
+
+**工作原理**:
+- 在创建、加载或重命名存档时，系统会自动记录当前存档名称到配置文件
+- 配置文件存储在`save/save_config.json`
+- 加载上次存档时，系统会从配置文件读取上次使用的存档名称，然后尝试加载该存档
+
+**character_manager接口**:
+```python
+load_previous_game()
+```
+加载上次使用的游戏存档，是对`save_manager.load_previous_save()`的封装。
+
+**示例**:
+```python
+# 程序启动时加载上次游戏
+from character import character_manager
+character_manager.load_previous_game()
+```
 
 ## 未来计划
 

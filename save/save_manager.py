@@ -226,20 +226,17 @@ class SaveManager:
             bool: 是否创建成功
         """
         try:
-            # 检查是否存在同名存档
-            if save_name in self.list_saves():
+            # 检查存档是否已存在
+            save_file = os.path.join(self._characters_dir, f"{save_name}.json")
+            if os.path.exists(save_file):
                 print(f"存档 '{save_name}' 已存在")
                 return False
-            
-            # 保存当前存档
-            if self._save_data["attributes"]:
-                self._save_data_to_file()
-            
-            # 创建新存档
+                
+            # 更新当前存档信息
             self._current_save_name = save_name
-            self._save_file = os.path.join(self._characters_dir, f"{save_name}.json")
+            self._save_file = save_file
             
-            # 初始化新存档数据
+            # 创建新的存档数据
             self._save_data = {
                 "metadata": {
                     "version": "1.0",
@@ -253,8 +250,14 @@ class SaveManager:
                 "attribute_categories": {}
             }
             
-            # 保存新存档
-            return self._save_data_to_file()
+            # 保存到文件
+            result = self._save_data_to_file()
+            if result:
+                print(f"已创建存档 '{save_name}'")
+                # 更新配置文件
+                self._save_save_config()
+            return result
+            
         except Exception as e:
             print(f"创建存档 '{save_name}' 失败: {str(e)}")
             return False
@@ -271,20 +274,23 @@ class SaveManager:
         """
         try:
             # 检查存档是否存在
-            if save_name not in self.list_saves():
+            save_file = os.path.join(self._characters_dir, f"{save_name}.json")
+            if not os.path.exists(save_file):
                 print(f"存档 '{save_name}' 不存在")
                 return False
-            
-            # 保存当前存档
-            if self._save_data["attributes"]:
-                self._save_data_to_file()
-            
-            # 设置新的存档文件
+                
+            # 更新当前存档信息
             self._current_save_name = save_name
-            self._save_file = os.path.join(self._characters_dir, f"{save_name}.json")
+            self._save_file = save_file
             
-            # 加载新存档
-            return self._load_save()
+            # 从文件加载数据
+            result = self._load_save()
+            if result:
+                print(f"已加载存档 '{save_name}'")
+                # 更新配置文件
+                self._save_save_config()
+            return result
+            
         except Exception as e:
             print(f"加载存档 '{save_name}' 失败: {str(e)}")
             return False
@@ -354,6 +360,9 @@ class SaveManager:
                 self._save_data["metadata"]["save_name"] = new_name
                 self._save_data_to_file()
                 
+                # 更新配置文件
+                self._save_save_config()
+                
             print(f"已将存档 '{old_name}' 重命名为 '{new_name}'")
             return True
             
@@ -406,7 +415,67 @@ class SaveManager:
         except Exception as e:
             print(f"读取存档 '{save_name}' 失败: {str(e)}")
             return None
+    
+    def _load_save_config(self):
+        """
+        读取存档配置
+        
+        返回:
+            dict: 配置数据，如果读取失败则返回默认配置
+        """
+        config_file = os.path.join(self._save_dir, "save", "save_config.json")
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return {"current_save": "default"}
+        except Exception as e:
+            print(f"读取存档配置失败: {str(e)}")
+            return {"current_save": "default"}
 
+    def _save_save_config(self, config=None):
+        """
+        保存存档配置
+        
+        参数:
+            config (dict, optional): 配置数据，如果不提供则使用当前存档名创建
+            
+        返回:
+            bool: 是否保存成功
+        """
+        if config is None:
+            config = {}
+        
+        # 确保当前存档名在配置中
+        config["current_save"] = self._current_save_name
+        config["last_access_time"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        
+        config_file = os.path.join(self._save_dir, "save", "save_config.json")
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"保存存档配置失败: {str(e)}")
+            return False
+    
+    def load_previous_save(self):
+        """
+        加载上次记录的存档
+        
+        返回:
+            bool: 是否加载成功
+        """
+        try:
+            config = self._load_save_config()
+            save_name = config.get("current_save")
+            if save_name and save_name in self.list_saves():
+                return self.load_save(save_name)
+            else:
+                print(f"上次存档 '{save_name}' 不存在或无效")
+        except Exception as e:
+            print(f"加载上次存档失败: {str(e)}")
+        return False
 
 # 初始化保存管理器
 save_manager = SaveManager()
@@ -559,4 +628,13 @@ def read_save_data(save_name):
     返回:
         dict: 存档数据，读取失败则返回None
     """
-    return save_manager.read_save_data(save_name) 
+    return save_manager.read_save_data(save_name)
+
+def load_previous_save():
+    """
+    加载上次使用的存档
+    
+    返回:
+        bool: 是否加载成功
+    """
+    return save_manager.load_previous_save() 

@@ -22,7 +22,7 @@ from storyline.storyline_manager import StorylineManager
 # 导入character模块
 try:
     from character.character_manager import get_all_attributes, get_attribute, set_attribute, create_attribute
-    from character.character_manager import configure_save_system, get_save_location
+    from character.character_manager import configure_save_system, get_save_location, create_save, list_saves, load_save
     CHARACTER_MODULE_AVAILABLE = True
 except ImportError:
     CHARACTER_MODULE_AVAILABLE = False
@@ -67,8 +67,20 @@ class TemplateEditor:
         # 初始化存档管理相关变量
         self.saves_dir = None
         if CHARACTER_MODULE_AVAILABLE:
+            # 使用save_manager中的方法获取当前存档位置
             self.save_file = get_save_location()
-            self.saves_dir = str(Path(self.save_file).parent)
+            
+            # 确保使用正确的characters目录
+            # save_file路径示例: /path/to/save/characters/default.json
+            save_path = Path(self.save_file)
+            if "characters" in str(save_path):
+                self.saves_dir = str(save_path.parent)  # 使用/path/to/save/characters/
+            else:
+                # 向上一级的save目录，再追加characters目录
+                self.saves_dir = str(Path(self.save_file).parent / "characters")
+                
+            # 确保目录存在
+            os.makedirs(self.saves_dir, exist_ok=True)
     
     def run(self) -> None:
         """启动模板编辑器图形界面"""
@@ -652,9 +664,6 @@ class TemplateEditor:
         select_btn = ttk.Button(save_buttons_frame, text="使用选中存档", command=self._select_save_file)
         select_btn.pack(side=tk.LEFT, padx=5)
         
-        # 设为默认存档按钮
-        set_default_btn = ttk.Button(save_buttons_frame, text="设为默认存档", command=self._set_default_save)
-        set_default_btn.pack(side=tk.LEFT, padx=5)
         
         refresh_btn = ttk.Button(save_buttons_frame, text="刷新列表", command=self._refresh_saves_list)
         refresh_btn.pack(side=tk.LEFT, padx=5)
@@ -1223,49 +1232,7 @@ class TemplateEditor:
         except json.JSONDecodeError as e:
             messagebox.showerror("格式错误", f"JSON格式不正确: {str(e)}")
     
-    def _set_default_save(self) -> None:
-        """将当前选中的存档设置为系统默认存档位置"""
-        # 获取选中的存档路径
-        save_path = self.saves_combobox.get()
-        if not save_path:
-            messagebox.showwarning("选择错误", "请先选择一个存档文件")
-            return
-            
-        # 需要导入os和json，并访问character模块目录
-        import os
-        from pathlib import Path
-        
-        try:
-            # 尝试读取character模块的配置文件
-            character_dir = Path(__file__).parent.parent.parent / "character"
-            config_path = character_dir / "config.json"
-            
-            # 创建或加载配置
-            config = {}
-            if os.path.exists(config_path):
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-            
-            # 更新默认存档配置
-            config['default_save'] = {
-                'save_dir': os.path.dirname(save_path),
-                'save_file': os.path.basename(save_path)
-            }
-            
-            # 保存配置
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-                
-            # 当前会话也切换到这个存档
-            configure_save_system(save_file=os.path.basename(save_path), save_dir=os.path.dirname(save_path))
-            
-            # 更新界面
-            self._refresh_saves_list()
-            
-            messagebox.showinfo("成功", f"已将 {save_path} 设置为系统默认存档位置")
-            
-        except Exception as e:
-            messagebox.showerror("设置失败", f"设置默认存档失败: {str(e)}")
+
     
     def _select_save_file(self) -> None:
         """选择并使用选中的存档文件"""
@@ -1276,20 +1243,35 @@ class TemplateEditor:
             return
             
         try:
-            # 配置存档系统使用选中的存档
-            configure_save_system(save_file=os.path.basename(save_path), save_dir=os.path.dirname(save_path))
+            # 获取文件名（不含扩展名）
+            save_name = os.path.splitext(os.path.basename(save_path))[0]
             
-            # 更新当前存档标签
-            self.current_save_label.config(text=f"当前存档: {save_path}")
+            # 使用save_manager直接加载存档
+            from character.character_manager import load_save, get_current_save_name, get_save_location
             
-            # 刷新角色属性列表
-            self._refresh_attributes()
+            # 加载存档
+            success = load_save(save_name)
             
-            messagebox.showinfo("成功", f"已切换到存档: {save_path}")
+            if success:
+                # 获取当前存档信息用于显示
+                current_save_name = get_current_save_name()
+                current_save_path = get_save_location()
+                
+                # 更新当前存档标签
+                self.current_save_label.config(text=f"当前存档: {current_save_name} ({current_save_path})")
+                
+                # 刷新角色属性列表
+                self._refresh_attributes()
+                
+                messagebox.showinfo("成功", f"已切换到存档: {save_name}")
+            else:
+                messagebox.showerror("错误", f"无法加载存档 '{save_name}'")
             
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("错误", f"切换存档失败: {str(e)}")
-
+    
     def _create_new_template(self) -> None:
         """创建新模板"""
         # 重置所有字段
@@ -2062,61 +2044,56 @@ class TemplateEditor:
 
     def _create_new_save(self) -> None:
         """创建一个新的存档文件"""
-        # 请求输入文件名
-        filename = simpledialog.askstring("新建存档", "请输入存档文件名 (不含扩展名):")
+        # 请求输入文件名和可选的角色名称
+        filename = simpledialog.askstring("新建存档", "请输入存档名称 (不含扩展名):")
         if not filename:
             return
             
         # 确保文件名有效
         filename = filename.strip()
         if not filename:
-            messagebox.showwarning("输入错误", "文件名不能为空")
+            messagebox.showwarning("输入错误", "存档名称不能为空")
             return
             
-        # 添加.json扩展名
-        if not filename.endswith(".json"):
-            filename += ".json"
-            
-        # 完整的保存路径
-        save_path = os.path.join(self.saves_dir, filename)
-        
-        # 检查文件是否已存在
-        if os.path.exists(save_path):
-            overwrite = messagebox.askyesno("文件已存在", f"文件 {filename} 已存在，是否覆盖？")
-            if not overwrite:
-                return
+        # 请求输入角色名称和描述
+        character_name = simpledialog.askstring("角色名称", "请输入角色名称 (可选):", initialvalue="")
+        description = simpledialog.askstring("存档描述", "请输入存档描述 (可选):", initialvalue="")
         
         try:
-            # 创建空的存档数据结构
-            save_data = {
-                "角色数据": {},
-                "属性类别": {}
-            }
+            # 使用save_manager创建新存档
+            from character.character_manager import create_save
             
-            # 创建目录（如果不存在）
-            os.makedirs(self.saves_dir, exist_ok=True)
+            # 检查存档是否已存在
+            from character.character_manager import list_saves
+            saves = list_saves()
+            if filename in saves:
+                overwrite = messagebox.askyesno("存档已存在", f"存档 '{filename}' 已存在，是否覆盖？")
+                if not overwrite:
+                    return
             
-            # 写入文件
-            with open(save_path, 'w', encoding='utf-8') as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=4)
+            # 创建新存档
+            success = create_save(filename, character_name or "", description or "")
+            
+            if success:
+                # 刷新存档列表
+                self._refresh_saves_list()
                 
-            # 配置存档系统使用新创建的存档
-            configure_save_system(save_file=filename, save_dir=self.saves_dir)
-            
-            # 刷新存档列表
-            self._refresh_saves_list()
-            
-            messagebox.showinfo("成功", f"已创建并选择新存档: {save_path}")
-            
-            # 刷新角色属性选项卡
-            self._refresh_attributes()
+                # 刷新角色属性选项卡
+                self._refresh_attributes()
+                
+                messagebox.showinfo("成功", f"已创建并选择新存档: {filename}")
+            else:
+                messagebox.showerror("错误", "创建存档失败，请检查控制台输出")
+                
         except Exception as e:
             messagebox.showerror("错误", f"创建存档失败: {str(e)}")
     
     def _browse_save_file(self) -> None:
         """浏览并选择一个存档文件"""
+        initial_dir = self.saves_dir if self.saves_dir else os.path.expanduser("~")
         file_path = filedialog.askopenfilename(
             title="选择存档文件",
+            initialdir=initial_dir,
             filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
         )
         
@@ -2128,23 +2105,34 @@ class TemplateEditor:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 
-            if "角色数据" not in data:
+            # 同时检查新旧字段结构，兼容两种格式
+            if "attributes" not in data and "角色数据" not in data:
                 messagebox.showwarning("无效存档", "选择的文件不是有效的角色存档")
                 return
                 
-            # 配置存档系统使用选中的存档
-            configure_save_system(save_file=os.path.basename(file_path), save_dir=os.path.dirname(file_path))
+            # 获取文件名（不含扩展名）和目录
+            save_file = os.path.basename(file_path)
+            save_dir = os.path.dirname(file_path)
+            save_name = os.path.splitext(save_file)[0]  # 移除.json扩展名
             
-            # 更新存档目录
-            self.saves_dir = os.path.dirname(file_path)
+            # 使用save_manager加载存档
+            from character.character_manager import load_save
+            success = load_save(save_name)
             
-            # 刷新存档列表
-            self._refresh_saves_list()
+            if success:
+                # 更新存档目录
+                self.saves_dir = save_dir
+                
+                # 刷新存档列表
+                self._refresh_saves_list()
+                
+                # 刷新角色属性选项卡
+                self._refresh_attributes()
+                
+                messagebox.showinfo("成功", f"已切换到存档: {save_name}")
+            else:
+                messagebox.showerror("错误", f"加载存档 '{save_name}' 失败")
             
-            messagebox.showinfo("成功", f"已切换到存档: {file_path}")
-            
-            # 刷新角色属性选项卡
-            self._refresh_attributes()
         except json.JSONDecodeError:
             messagebox.showerror("错误", "所选文件不是有效的JSON文件")
         except Exception as e:
@@ -2153,40 +2141,62 @@ class TemplateEditor:
     def _refresh_saves_list(self) -> None:
         """刷新存档文件列表"""
         try:
-            # 更新当前存档标签
+            # 使用character_manager获取当前存档信息
+            from character.character_manager import get_current_save_name, get_save_location, list_saves
+            
             current_save_path = get_save_location()
-            self.current_save_label.config(text=f"当前存档: {current_save_path}")
+            current_save_name = get_current_save_name()
+            
+            # 更新当前存档标签
+            self.current_save_label.config(text=f"当前存档: {current_save_name} ({current_save_path})")
+            
+            # 获取存档目录
+            save_dir = os.path.dirname(current_save_path)
+            if os.path.basename(save_dir) != "characters":
+                # 确保我们使用的是characters目录
+                save_dir = os.path.join(save_dir, "characters")
+            
+            # 更新保存的目录路径
+            self.saves_dir = save_dir
+                
+            # 获取存档列表
+            saves = list_saves()
             
             # 清空下拉列表
             self.saves_combobox.set("")
-            self.saves_combobox["values"] = []
-            
-            if not self.saves_dir or not os.path.exists(self.saves_dir):
-                return
-        
-            # 获取所有JSON文件
             json_files = []
-            for file in os.listdir(self.saves_dir):
-                if file.endswith(".json"):
-                    full_path = os.path.join(self.saves_dir, file)
-                    # 验证是否为有效的存档文件
-                    try:
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                        if "角色数据" in data:
+            
+            # 检查是否有存档
+            if not saves:
+                # 如果list_saves返回空列表，使用文件系统查找
+                if os.path.exists(save_dir):
+                    for file in os.listdir(save_dir):
+                        if file.endswith(".json"):
+                            full_path = os.path.join(save_dir, file)
                             json_files.append(full_path)
-                    except:
-                        # 忽略无效文件
-                        pass
+            else:
+                # 从存档列表构建完整路径
+                for save_name in saves:
+                    full_path = os.path.join(save_dir, f"{save_name}.json")
+                    if os.path.exists(full_path):
+                        json_files.append(full_path)
             
             # 更新下拉列表
-            self.saves_combobox["values"] = json_files
-            
-            # 设置当前选中的存档
-            if current_save_path in json_files:
-                self.saves_combobox.set(current_save_path)
+            if json_files:
+                self.saves_combobox["values"] = json_files
+                
+                # 设置当前选中的存档
+                if current_save_path in json_files:
+                    self.saves_combobox.set(current_save_path)
+                else:
+                    # 如果当前存档不在列表中，选择第一个
+                    self.saves_combobox.set(json_files[0])
+            else:
+                print("警告: 未找到任何存档文件")
                 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("错误", f"刷新存档列表失败: {str(e)}")
 
     # 保留一个空的方法，以防其他地方调用

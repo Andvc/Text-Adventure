@@ -470,6 +470,15 @@ def get_attribute_from_save(save_name, attr_name, default=None):
         print(f"从存档 '{save_name}' 读取属性 '{attr_name}' 失败: {str(e)}")
         return default
 
+def load_previous_game():
+    """
+    加载上次使用的游戏存档
+    
+    返回:
+        bool: 是否加载成功
+    """
+    return save_manager.load_previous_save()
+
 def get_data(data_type, file_name, key, default=None):
     """
     从游戏数据文件中读取特定键的值

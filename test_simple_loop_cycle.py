@@ -28,7 +28,11 @@ from character.character_manager import (
     get_attribute,
     set_attribute,
     get_all_attributes,
-    configure_save_system
+    configure_save_system,
+    list_saves,
+    load_save,
+    load_previous_game,
+    get_current_save_name
 )
 
 class SimpleLoopTester:
@@ -36,8 +40,37 @@ class SimpleLoopTester:
     
     def __init__(self):
         """初始化测试器"""
-        # 配置存档为simple_loop
-        configure_save_system(save_file="simple_loop.json")
+        # 配置初始存档系统
+        configure_save_system()
+        
+        # 尝试加载上次使用的存档
+        self.print_header("存档加载", width=80)
+        
+        # 获取可用存档列表
+        saves = list_saves()
+        simple_loop_exists = "simple_loop" in saves
+        
+        # 检查上次存档
+        last_save_loaded = False
+        if load_previous_game():
+            last_save = get_current_save_name()
+            print(f"已自动加载上次使用的存档: {last_save}")
+            
+            # 让用户确认是否使用该存档
+            if input("是否使用此存档继续？(y/n): ").lower() != 'y':
+                last_save_loaded = False
+            else:
+                last_save_loaded = True
+                print(f"将使用存档 '{last_save}' 继续")
+        
+        # 如果没有加载上次存档，则加载simple_loop或创建新存档
+        if not last_save_loaded:
+            if simple_loop_exists:
+                print("找到simple_loop存档，正在加载...")
+                load_save("simple_loop")
+            else:
+                print("未找到simple_loop存档，将配置新的simple_loop存档...")
+                configure_save_system(save_file="simple_loop.json")
         
         # 初始化故事线管理器
         self.manager = StorylineManager()
@@ -72,6 +105,10 @@ class SimpleLoopTester:
     def print_status(self):
         """打印当前状态"""
         self.print_section("当前状态", "角色信息和故事状态：")
+        
+        # 获取当前存档名称
+        current_save = get_current_save_name()
+        print(f"  当前存档: {current_save}")
         
         # 获取所有属性
         all_attrs = get_all_attributes()
