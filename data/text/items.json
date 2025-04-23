@@ -1,0 +1,73 @@
+{
+    "wooden_sword": {
+        "name": "木剑",
+        "description": "一把简单的木剑，适合初学者使用。",
+        "type": "weapon",
+        "base_attack": 3,
+        "durability": 20,
+        "value": 50,
+        "weight": 1.5,
+        "required_level": 1,
+        "tags": ["初级", "武器", "剑"]
+    },
+    "iron_sword": {
+        "name": "铁剑",
+        "description": "常见的铁制武器，耐用且威力不俗。",
+        "type": "weapon",
+        "base_attack": 8,
+        "durability": 50,
+        "value": 200,
+        "weight": 3.0,
+        "required_level": 5,
+        "tags": ["中级", "武器", "剑"]
+    },
+    "steel_sword": {
+        "name": "钢剑",
+        "description": "精钢打造的剑，锋利异常。",
+        "type": "weapon",
+        "base_attack": 15,
+        "durability": 100,
+        "value": 500,
+        "weight": 2.8,
+        "required_level": 10,
+        "tags": ["高级", "武器", "剑"]
+    },
+    "leather_armor": {
+        "name": "皮甲",
+        "description": "用兽皮制成的简易护甲。",
+        "type": "armor",
+        "base_defense": 5,
+        "durability": 30,
+        "value": 120,
+        "weight": 4.0,
+        "required_level": 1,
+        "tags": ["初级", "护甲"]
+    },
+    "health_potion": {
+        "name": "治疗药水",
+        "description": "饮用后恢复少量生命值。",
+        "type": "consumable",
+        "effect": {
+            "type": "heal",
+            "amount": 20
+        },
+        "value": 25,
+        "weight": 0.3,
+        "required_level": 1,
+        "tags": ["消耗品", "药水"]
+    },
+    "magic_scroll": {
+        "name": "魔法卷轴",
+        "description": "包含基础火球术的卷轴，使用后立即释放。",
+        "type": "consumable",
+        "effect": {
+            "type": "damage",
+            "element": "fire",
+            "amount": 35
+        },
+        "value": 75,
+        "weight": 0.2,
+        "required_level": 3,
+        "tags": ["消耗品", "魔法"]
+    }
+} 

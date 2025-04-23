@@ -151,6 +151,28 @@ data["attributes"]["新属性"] = "新值"
 save_manager.update_save_data(data)
 ```
 
+#### 读取指定存档数据
+
+```python
+read_save_data(save_name)
+```
+读取指定存档的数据，不改变当前活动存档。
+
+**参数**:
+- `save_name`: 存档名称
+
+**返回值**:
+- 存档数据字典，读取失败则返回None
+
+**示例**:
+```python
+# 不切换当前存档，直接读取其他存档数据
+other_save_data = save_manager.read_save_data("其他存档")
+if other_save_data:
+    # 处理其他存档的数据
+    print(f"其他存档的属性数量: {len(other_save_data['attributes'])}")
+```
+
 ### 元数据操作
 
 #### 获取存档元数据
@@ -215,7 +237,24 @@ print(f"存档文件路径: {path}")
 save模块设计为底层存储服务，可被多个上层模块使用：
 
 - `character_manager`模块：使用save_manager存储角色属性数据
+  - 大部分功能是对save_manager接口的封装或扩展
+  - 提供了针对角色数据的特定业务逻辑（属性分类、物品管理等）
 - 未来可能的其他模块：任务系统、成就系统等
+
+### 模块间关系
+
+save_manager作为底层存储引擎，主要负责：
+1. 文件操作（读/写/删除）
+2. 数据序列化和反序列化
+3. 存档元数据管理
+4. 多存档管理
+
+而上层模块（如character_manager）则关注：
+1. 特定数据结构的操作（如属性CRUD操作）
+2. 业务逻辑实现
+3. 用户友好的接口提供
+
+这种分层设计使得系统更加模块化，每个部分专注于自身职责。
 
 ## 未来计划
 

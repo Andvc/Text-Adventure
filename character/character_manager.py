@@ -11,8 +11,9 @@ from collections import defaultdict
 # 临时添加父目录到系统路径，以便导入save模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 导入save_manager模块
+# 导入save_manager和data_manager模块
 from save import save_manager
+from data import data_manager
 
 # 配置存档系统的函数
 def configure_save_system(save_dir=None, save_file=None):
@@ -445,4 +446,62 @@ def update_save_metadata(key, value):
     返回:
         bool: 是否更新成功
     """
-    return save_manager.update_save_metadata(key, value) 
+    return save_manager.update_save_metadata(key, value)
+
+def get_attribute_from_save(save_name, attr_name, default=None):
+    """
+    从指定存档中读取属性值，不改变当前活动存档
+    
+    参数:
+        save_name (str): 要读取的存档名称
+        attr_name (str): 要读取的属性名称
+        default (any, optional): 如果属性不存在时返回的默认值
+        
+    返回:
+        any: 属性值，如不存在则返回默认值
+    """
+    try:
+        save_data = save_manager.read_save_data(save_name)
+        if save_data is None:
+            return default
+            
+        return save_data["attributes"].get(attr_name, default)
+    except Exception as e:
+        print(f"从存档 '{save_name}' 读取属性 '{attr_name}' 失败: {str(e)}")
+        return default
+
+def get_data(data_type, file_name, key, default=None):
+    """
+    从游戏数据文件中读取特定键的值
+    
+    参数:
+        data_type (str): 数据类型，如'text'、'images'等
+        file_name (str): 文件名（不含扩展名）
+        key (str): 数据键名
+        default: 默认值，如果数据不存在则返回此值
+        
+    返回:
+        任意类型: 数据值或默认值
+    """
+    try:
+        return data_manager.get_data_value(data_type, file_name, key, default)
+    except Exception as e:
+        print(f"从数据文件 '{file_name}' 读取键 '{key}' 失败: {str(e)}")
+        return default
+
+def read_data_file(data_type, file_name):
+    """
+    读取整个游戏数据文件
+    
+    参数:
+        data_type (str): 数据类型，如'text'、'images'等
+        file_name (str): 文件名（不含扩展名）
+        
+    返回:
+        dict: 数据内容，读取失败则返回None
+    """
+    try:
+        return data_manager.read_data_file(data_type, file_name)
+    except Exception as e:
+        print(f"读取数据文件 '{file_name}' 失败: {str(e)}")
+        return None 

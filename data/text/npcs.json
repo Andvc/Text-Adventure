@@ -1,0 +1,72 @@
+{
+    "merchant": {
+        "name": "商人老王",
+        "description": "一位和蔼可亲的商人，总是带着各种有趣的商品。",
+        "occupation": "商人",
+        "greeting": "欢迎光临我的小店，看看有什么感兴趣的商品吗？",
+        "farewell": "谢谢惠顾，欢迎下次再来！",
+        "inventory": ["wooden_sword", "health_potion", "leather_armor"],
+        "buy_rate": 0.8,
+        "sell_rate": 1.2,
+        "location": "村庄市场",
+        "available_quests": ["fetch_herbs"],
+        "relationships": {
+            "blacksmith": "friend",
+            "innkeeper": "business_partner"
+        }
+    },
+    "blacksmith": {
+        "name": "铁匠张",
+        "description": "肌肉发达的铁匠，锻造技艺精湛。",
+        "occupation": "铁匠",
+        "greeting": "想要打造点什么装备吗？我的武器是全村最好的。",
+        "farewell": "拿着吧，小心使用。",
+        "inventory": ["iron_sword", "steel_sword"],
+        "services": ["repair", "upgrade", "craft"],
+        "repair_rate": 0.3,
+        "upgrade_rate": 1.5,
+        "location": "村庄铁匠铺",
+        "available_quests": ["find_ore"],
+        "relationships": {
+            "merchant": "friend",
+            "village_elder": "respect"
+        }
+    },
+    "innkeeper": {
+        "name": "旅店老板娘",
+        "description": "精明能干的中年妇女，经营着村里唯一的旅店。",
+        "occupation": "旅店老板",
+        "greeting": "欢迎来到安宁旅店，需要住宿还是只是来喝一杯？",
+        "farewell": "一路平安，旅行者。",
+        "services": ["rest", "food", "gossip"],
+        "rest_price": 10,
+        "food_price": 5,
+        "location": "安宁旅店",
+        "gossip": [
+            "听说森林深处最近出现了一些奇怪的生物。",
+            "村长最近似乎很担忧，不知道发生了什么事。",
+            "铁匠的女儿上个月嫁给了隔壁村的猎人，真是可惜啊。"
+        ],
+        "relationships": {
+            "merchant": "business_partner",
+            "village_elder": "respect"
+        }
+    },
+    "village_elder": {
+        "name": "村长",
+        "description": "年迈的村长，满头白发但精神矍铄，是村里的精神领袖。",
+        "occupation": "村长",
+        "greeting": "你好，年轻人。有什么事情需要老朽帮忙吗？",
+        "farewell": "愿诸神保佑你的旅程。",
+        "location": "村长小屋",
+        "available_quests": ["village_problem", "ancient_relic"],
+        "knowledge": [
+            "村庄历史",
+            "远古传说",
+            "地区政治"
+        ],
+        "relationships": {
+            "everyone": "leader"
+        }
+    }
+} 

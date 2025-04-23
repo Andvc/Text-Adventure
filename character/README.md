@@ -12,6 +12,7 @@
 - [多存档支持](#多存档支持)
 - [使用示例](#使用示例)
 - [数据存储](#数据存储)
+- [模块关系](#模块关系)
 
 ## 功能特点
 
@@ -591,6 +592,31 @@ update_save_metadata(key, value)
   update_save_metadata("character_name", "新名称")
   ```
 
+### 从指定存档读取属性
+
+```python
+get_attribute_from_save(save_name, attr_name, default=None)
+```
+
+从指定存档中读取属性值，不改变当前活动存档。这对于需要在不切换当前存档的情况下访问其他存档数据非常有用。
+
+- **参数**:
+  - `save_name`: 要读取的存档名称
+  - `attr_name`: 要读取的属性名称
+  - `default`: (可选) 如果属性不存在时返回的默认值
+- **返回值**:
+  - 属性值，如不存在则返回默认值
+
+- **示例**:
+  ```python
+  # 当前活动存档是"角色1"，但想读取"角色2"的某个属性
+  level = get_attribute_from_save("角色2", "等级", 0)  # 读取角色2的等级，默认值为0
+  print(f"角色2的等级是: {level}")
+  
+  # 不会改变当前活动存档，后续操作仍在"角色1"存档上进行
+  current_name = get_attribute("姓名")  # 返回角色1的姓名
+  ```
+
 ## 使用示例
 
 ### 基本用法
@@ -775,4 +801,106 @@ for i in range(count_attributes_by_category("状态效果")):
         "龙鳞胸甲": "背包物品"
     }
 }
-``` 
+```
+
+## 模块关系
+
+`character_manager`和`save_manager`模块之间存在以下关系：
+
+### 架构设计
+
+`character_manager`是一个高级接口，提供友好易用的角色属性管理功能，而`save_manager`则是底层的存储引擎，负责数据持久化和文件操作。
+
+- **save_manager**: 提供存档的创建、读取、修改、删除等基础功能，不关心数据具体内容和结构
+- **character_manager**: 依赖save_manager来存储数据，提供特定于角色属性的业务逻辑和操作
+
+### 调用机制
+
+character_manager中的大多数函数实际上是对save_manager功能的封装和扩展：
+
+1. **直接转发模式**：多存档管理函数（如`list_saves`、`create_save`等）直接转发给save_manager的同名函数
+2. **封装模式**：属性操作函数先从save_manager获取数据，进行处理后再通过save_manager保存
+3. **扩展模式**：提供save_manager没有的高级功能，如属性分类、物品属性管理等
+
+### 优势
+
+这种设计有以下优势：
+
+1. **关注点分离**：save_manager专注于存储，character_manager专注于业务逻辑
+2. **代码复用**：其他模块可以直接使用save_manager提供的存储功能
+3. **灵活性**：可以独立更改存储实现而不影响上层业务逻辑
+4. **易于维护**：每个模块职责明确，更容易调试和维护
+
+### 跨存档操作
+
+`get_attribute_from_save`功能利用save_manager的`read_save_data`函数，允许在不改变当前活动存档的情况下，读取其他存档的属性。这对于需要比较不同存档数据、从模板存档读取信息或实现游戏内的存档间交互非常有用。
+
+## 游戏数据访问
+
+除了存档系统，角色属性管理模块现在还提供了访问游戏固定数据的功能。这些数据存储在`data`目录下，与玩家存档分离。
+
+### 数据与存档的区别
+
+- **存档数据**：存储玩家游戏进度和角色状态，随游戏进行不断变化
+- **游戏数据**：存储游戏内置的固定内容，如物品模板、NPC信息、对话等
+
+### 数据访问函数
+
+```python
+get_data(data_type, file_name, key, default=None)
+```
+
+从游戏数据文件中读取特定键的值。
+
+- **参数**:
+  - `data_type`: 数据类型，如'text'、'images'等
+  - `file_name`: 文件名（不含扩展名）
+  - `key`: 数据键名
+  - `default`: (可选) 默认值，如果数据不存在时返回的默认值
+- **返回值**:
+  - 数据值，如不存在则返回默认值
+
+- **示例**:
+  ```python
+  # 获取物品模板数据
+  sword_template = get_data('text', 'items', 'sword', {})
+  print(f"剑的基础攻击力: {sword_template.get('base_attack', 0)}")
+  
+  # 获取NPC对话
+  merchant_dialogue = get_data('text', 'dialogues', 'merchant_greeting', "欢迎光临！")
+  ```
+
+```python
+read_data_file(data_type, file_name)
+```
+
+读取整个游戏数据文件。
+
+- **参数**:
+  - `data_type`: 数据类型，如'text'、'images'等
+  - `file_name`: 文件名（不含扩展名）
+- **返回值**:
+  - 包含整个数据文件内容的字典，读取失败则返回None
+
+- **示例**:
+  ```python
+  # 读取所有物品模板
+  all_items = read_data_file('text', 'items')
+  if all_items:
+      for item_id, item_data in all_items.items():
+          print(f"物品: {item_data['name']}")
+          
+  # 读取所有对话数据
+  all_dialogues = read_data_file('text', 'dialogues')
+  ```
+
+### 应用场景
+
+1. **物品系统**：从data中读取物品模板，创建角色实际拥有的物品
+2. **NPC交互**：从data中读取NPC信息和对话内容
+3. **任务系统**：从data中读取任务模板和奖励信息
+4. **游戏设置**：从data中读取游戏配置和平衡参数
+
+### 与data_manager的关系
+
+character_manager模块提供的数据访问函数是对data_manager模块功能的封装，便于在角色属性管理的上下文中使用。完整的数据管理功能请参见data模块的文档。 

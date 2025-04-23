@@ -331,37 +331,81 @@ class SaveManager:
         """
         try:
             # 检查原存档是否存在
-            if old_name not in self.list_saves():
+            old_save_path = os.path.join(self._characters_dir, f"{old_name}.json")
+            if not os.path.exists(old_save_path):
                 print(f"存档 '{old_name}' 不存在")
                 return False
-            
-            # 检查新名称是否已存在
-            if new_name in self.list_saves():
-                print(f"存档名 '{new_name}' 已被使用")
-                return False
-            
-            # 如果重命名的是当前存档，更新当前存档名
-            is_current = (old_name == self._current_save_name)
-            
-            # 重命名文件
-            old_file = os.path.join(self._characters_dir, f"{old_name}.json")
-            new_file = os.path.join(self._characters_dir, f"{new_name}.json")
-            os.rename(old_file, new_file)
-            
-            # 如果重命名的是当前存档，更新相关属性
-            if is_current:
-                self._current_save_name = new_name
-                self._save_file = new_file
                 
-                # 更新元数据
-                self._save_data["metadata"]["save_name"] = new_name
-                self._save_data["metadata"]["last_modified"] = time.time()
-                self._save_data_to_file()
+            # 检查新名称是否已被使用
+            new_save_path = os.path.join(self._characters_dir, f"{new_name}.json")
+            if os.path.exists(new_save_path):
+                print(f"存档名称 '{new_name}' 已被使用")
+                return False
+                
+            # 重命名文件
+            os.rename(old_save_path, new_save_path)
             
+            # 如果当前存档就是被重命名的存档，更新当前存档路径
+            if self._current_save_name == old_name:
+                self._current_save_name = new_name
+                self._save_file = new_save_path
+                
+                # 更新存档内的名称
+                self._save_data["metadata"]["save_name"] = new_name
+                self._save_data_to_file()
+                
+            print(f"已将存档 '{old_name}' 重命名为 '{new_name}'")
             return True
+            
         except Exception as e:
-            print(f"重命名存档 '{old_name}' 到 '{new_name}' 失败: {str(e)}")
+            print(f"重命名存档失败: {str(e)}")
             return False
+    
+    def read_save_data(self, save_name):
+        """
+        读取指定存档的数据，不改变当前活动存档
+        
+        参数:
+            save_name (str): 存档名称
+            
+        返回:
+            dict: 存档数据，读取失败则返回None
+        """
+        try:
+            save_file = os.path.join(self._characters_dir, f"{save_name}.json")
+            
+            if not os.path.exists(save_file):
+                print(f"存档 '{save_name}' 不存在")
+                return None
+                
+            with open(save_file, 'r', encoding='utf-8') as f:
+                save_data = json.load(f)
+                
+                # 兼容旧版数据结构
+                if "角色数据" in save_data:
+                    save_data["attributes"] = save_data.pop("角色数据")
+                if "属性类别" in save_data:
+                    save_data["attribute_categories"] = save_data.pop("属性类别")
+                
+                # 确保基本结构完整
+                if "attributes" not in save_data:
+                    save_data["attributes"] = {}
+                if "attribute_categories" not in save_data:
+                    save_data["attribute_categories"] = {}
+                if "metadata" not in save_data:
+                    save_data["metadata"] = {
+                        "version": "1.0",
+                        "created_at": time.time(),
+                        "last_modified": time.time(),
+                        "character_name": "",
+                        "save_name": save_name,
+                        "description": ""
+                    }
+                    
+                return save_data
+        except Exception as e:
+            print(f"读取存档 '{save_name}' 失败: {str(e)}")
+            return None
 
 
 # 初始化保存管理器
@@ -503,4 +547,16 @@ def get_save_file_path():
     返回:
         str: 存档文件的完整路径
     """
-    return save_manager.get_save_file_path() 
+    return save_manager.get_save_file_path()
+
+def read_save_data(save_name):
+    """
+    读取指定存档的数据，不改变当前活动存档
+    
+    参数:
+        save_name (str): 存档名称
+        
+    返回:
+        dict: 存档数据，读取失败则返回None
+    """
+    return save_manager.read_save_data(save_name) 
