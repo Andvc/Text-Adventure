@@ -19,6 +19,9 @@ data/
 └── text/              # 文本类数据文件
     ├── items.json     # 物品数据
     ├── npcs.json      # NPC数据
+    ├── worlds/        # 预设世界观数据
+    │   ├── fantasy_realm.json   # 奇幻大陆世界观
+    │   └── sci_fi_future.json   # 星际纪元世界观
     └── ...            # 其他文本数据
 ```
 

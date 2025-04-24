@@ -70,7 +70,7 @@ class PromptProcessor:
     
     def build_prompt(self, segments: List[str]) -> str:
         """
-        根据输入片段构建完整提示词，使用JSON格式
+        根据输入片段构建完整提示词，使用自定义模板或默认JSON格式
         
         Args:
             segments: 提示词片段列表
@@ -83,28 +83,56 @@ class PromptProcessor:
         # 组合信息类提示词
         input_info = " ".join([f"({info})" for info in parsed["info"]])
         
-        # 检查是否存在内容-格式配对
-        if parsed["pairs"]:
-            # 提取所有字段和它们对应的内容
-            fields_content = {}
-            content_map = {}  # 存储格式到内容的映射
+        # 提取内容和格式信息，用于替换模板
+        if parsed["content"]:
+            output_content = parsed["content"][0]
+        else:
+            output_content = "内容"
             
-            for pair in parsed["pairs"]:
-                content = pair["content"]
-                format_str = pair["format"]
-                content_map[format_str] = content
-                
-                # 从格式中提取字段
+        # 检查是否有自定义模板，如果有则尝试使用它
+        # 首先检查模板中是否包含必要的占位符
+        has_custom_template = False
+        custom_template_usable = False
+        
+        if self.template != config.DEFAULT_PROMPT_TEMPLATE:
+            has_custom_template = True
+            # 检查模板是否包含必要的占位符
+            if "{input_info}" in self.template:
+                custom_template_usable = True
+        
+        # 处理配对和格式信息
+        if parsed["pairs"] or (parsed["format"] and len(re.findall(r'([^=,\s]+)=', parsed["format"][0])) > 1):
+            # 有配对或多字段格式，需要构建JSON结构
+            
+            # 提取字段和内容
+            fields_content = {}
+            
+            # 从配对中提取
+            if parsed["pairs"]:
+                for pair in parsed["pairs"]:
+                    content = pair["content"]
+                    format_str = pair["format"]
+                    
+                    # 从格式中提取字段
+                    fields = re.findall(r'([^=,\s]+)=', format_str)
+                    
+                    # 处理字段与内容的对应关系
+                    if len(fields) == 1:
+                        # 单一字段
+                        fields_content[fields[0]] = content
+                    else:
+                        # 多字段
+                        for field in fields:
+                            fields_content[field] = f"{field.replace('_', ' ')}-{content}"
+            # 从单独的格式中提取多字段
+            elif parsed["format"]:
+                format_str = parsed["format"][0]
                 fields = re.findall(r'([^=,\s]+)=', format_str)
                 
-                # 处理字段与内容的对应关系
-                if len(fields) == 1:
-                    # 单一字段，使用完整内容描述
-                    fields_content[fields[0]] = content
-                else:
-                    # 多字段，包含字段名和内容描述
+                if len(fields) > 1:
                     for field in fields:
-                        fields_content[field] = f"{field.replace('_', ' ')}-{content}"
+                        field_name = field.replace("_", " ")
+                        fields_content[field] = f"{field_name}-{output_content}"
             
             # 构建JSON模板
             json_template = "{\n"
@@ -114,7 +142,35 @@ class PromptProcessor:
             # 移除最后一个逗号
             json_template = json_template.rstrip(",\n") + "\n}"
             
-            # 创建适应多字段的模板
+            # 如果有可用的自定义模板，尝试使用它
+            if custom_template_usable:
+                try:
+                    # 替换背景、内容和格式占位符
+                    prompt = self.template
+                    if "{background}" in prompt or "{content}" in prompt or "{format}" in prompt:
+                        # 收集各类型片段
+                        background_parts = [f"({info})" for info in parsed["info"]]
+                        content_parts = [f"<{content}>" for content in parsed["content"]]
+                        format_parts = [json_template]
+                        
+                        # 替换占位符
+                        if "{background}" in prompt:
+                            prompt = prompt.replace("{background}", "\n".join(background_parts))
+                        if "{content}" in prompt:
+                            prompt = prompt.replace("{content}", "\n".join(content_parts))
+                        if "{format}" in prompt:
+                            prompt = prompt.replace("{format}", "\n".join(format_parts))
+                    else:
+                        # 使用标准占位符
+                        prompt = self.template.format(
+                            input_info=input_info,
+                            json_format=json_template
+                        )
+                    return prompt
+                except Exception as e:
+                    print(f"使用自定义模板失败: {str(e)}，回退到默认模板")
+            
+            # 使用默认的多字段模板
             multi_field_template = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释：
 
 {json_format}
@@ -129,49 +185,45 @@ class PromptProcessor:
             )
             return prompt
         
-        # 如果没有配对，尝试使用标准方法
-        # 获取输出内容和格式
-        output_content = parsed["content"][0] if parsed["content"] else "内容"
-        output_format = parsed["format"][0] if parsed["format"] else ""
-        
-        # 处理输出格式
-        if output_format:
-            # 检查是否是多字段格式
-            fields = re.findall(r'([^=,\s]+)=', output_format)
-            
-            if len(fields) > 1:
-                # 多字段格式，显示字段名和内容描述
-                json_template = "{\n"
-                for field in fields:
-                    field_name = field.replace("_", " ")
-                    json_template += f'  "{field}": "请在这里填入中文-{field_name}-{output_content}",\n'
-                # 移除最后一个逗号
-                json_template = json_template.rstrip(",\n") + "\n}"
-                
-                # 创建一个临时模板来适应多字段
-                multi_field_template = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释：
-
-{json_format}
-
-请确保输出是有效的JSON格式，包含所有指定的字段。
-提供给你的信息: {input_info}"""
-                
-                # 应用临时模板
-                prompt = multi_field_template.format(
-                    json_format=json_template,
-                    input_info=input_info
-                )
-                return prompt
-        
-        # 单字段格式或无格式，使用默认模板
-        output_key = "content"  # 默认键名
-        if output_format:
+        # 单字段格式或无格式的情况
+        output_key = "content"  # A默认键名
+        if parsed["format"]:
+            output_format = parsed["format"][0]
             key_match = re.search(r'([^=]+)=', output_format)
             if key_match:
                 output_key = key_match.group(1).strip()
         
-        # 修改模板以添加破折号
-        modified_template = self.template.replace(
+        # 如果有可用的自定义模板，尝试使用它
+        if custom_template_usable:
+            try:
+                # 替换背景、内容和格式占位符
+                prompt = self.template
+                if "{background}" in prompt or "{content}" in prompt or "{format}" in prompt:
+                    # 收集各类型片段
+                    background_parts = [f"({info})" for info in parsed["info"]]
+                    content_parts = [f"<{content}>" for content in parsed["content"]]
+                    format_template = f'{{"\\"{output_key}\\": "请在这里填入中文-{output_content}"}}'
+                    
+                    # 替换占位符
+                    if "{background}" in prompt:
+                        prompt = prompt.replace("{background}", "\n".join(background_parts))
+                    if "{content}" in prompt:
+                        prompt = prompt.replace("{content}", "\n".join(content_parts))
+                    if "{format}" in prompt:
+                        prompt = prompt.replace("{format}", format_template)
+                else:
+                    # 使用标准占位符
+                    prompt = self.template.format(
+                        input_info=input_info,
+                        output_content=output_content,
+                        output_key=output_key
+                    )
+                return prompt
+            except Exception as e:
+                print(f"使用自定义模板失败: {str(e)}，回退到默认模板")
+        
+        # 使用默认模板
+        modified_template = config.DEFAULT_PROMPT_TEMPLATE.replace(
             '"{output_key}": "在这里填入{output_content}"',
             '"{output_key}": "请在这里填入中文-{output_content}"'
         )
