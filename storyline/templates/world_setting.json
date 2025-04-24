@@ -11,14 +11,14 @@
     "(用户输入世界观: {user_world_input})",
     "<根据用户的世界观描述，创建一个详细且连贯的世界设定，包含以下方面>",
     "<根据输入补充合理的细节，确保世界观内部一致性>",
-    "{world_name=\"*\"}",
-    "{world_description=\"*\"}",
-    "{world_history=\"*\"}",
-    "{magic_system=\"*\"}",
-    "{major_races=\"*\"}",
-    "{factions=\"*\"}",
-    "{key_locations=\"*\"}",
-    "{themes=\"*\"}"
+    "[world_name=\"*\"]",
+    "[world_description=\"*\"]",
+    "[world_history=\"*\"]",
+    "[magic_system=\"*\"]",
+    "[major_races=\"*\"]",
+    "[factions=\"*\"]",
+    "[key_locations=\"*\"]",
+    "[themes=\"*\"]"
   ],
   "output_format": {
     "world_name": "string",

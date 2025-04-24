@@ -95,7 +95,7 @@ def test_prompt_processor():
         "(角色为剑士)",
         "(场景是森林)",
         "<一段故事>",
-        "{story=\"*\"}"
+        "[story=\"*\"]"
     ]
     
     # 解析片段
@@ -134,7 +134,7 @@ def test_custom_template():
         "(主角是侦探)",
         "(地点是博物馆)",
         "<一个谜题>",
-        "{puzzle=\"*\", difficulty=\"high\"}"
+        "[puzzle=\"*\", difficulty=\"high\"]"
     ]
     
     # 使用默认模板
@@ -168,7 +168,7 @@ def test_custom_template():
     role_play_segments = [
         "(家中有一只1岁的猫咪，经常抓挠家具)",
         "<宠物行为训练>",
-        "{solution=\"*\"}"
+        "[solution=\"*\"]"
     ]
     role_play_prompt = role_play_processor.build_prompt(role_play_segments)
     
@@ -189,7 +189,7 @@ def test_content_format_pairing():
     segments1 = [
         "(角色是巫师)",
         "<描述一个强大的火焰魔法>",
-        "{spell=\"*\"}"
+        "[spell=\"*\"]"
     ]
     
     prompt1 = processor.build_prompt(segments1)
@@ -200,7 +200,7 @@ def test_content_format_pairing():
     segments2 = [
         "(场景是学校)",
         "<描述一个学生和老师的对话>",
-        "{student_line=\"*\", teacher_line=\"*\"}"
+        "[student_line=\"*\", teacher_line=\"*\"]"
     ]
     
     prompt2 = processor.build_prompt(segments2)
@@ -212,13 +212,13 @@ def test_content_format_pairing():
         "(场景是中世纪城堡)",
         "(角色是吟游诗人和国王)",
         "<讲述一个国王面临的困境>",
-        "{story=\"*\"}",
+        "[story=\"*\"]",
         "<提供两个解决方案选项>",
-        "{choice1=\"*\", choice2=\"*\"}",
+        "[choice1=\"*\", choice2=\"*\"]",
         "<描述选择第一个方案的结果>",
-        "{consequence1=\"*\"}",
+        "[consequence1=\"*\"]",
         "<描述选择第二个方案的结果>",
-        "{consequence2=\"*\"}"
+        "[consequence2=\"*\"]"
     ]
     
     prompt3 = processor.build_prompt(segments3)
@@ -229,9 +229,9 @@ def test_content_format_pairing():
     segments4 = [
         "(游戏设定)",
         "<描述游戏主角>",
-        "{hero_name=\"*\", hero_class=\"*\"}",
+        "[hero_name=\"*\", hero_class=\"*\"]",
         "<描述游戏世界背景>",
-        "{world_description=\"*\"}",
+        "[world_description=\"*\"]",
         "(游戏玩法)"
     ]
     
@@ -411,7 +411,7 @@ def test_real_model_output(api_key=None):
                 "(主角是一名骑士)",
                 "(场景是一座古堡)",
                 "<一段冒险故事>",
-                "{story=\"*\"}"
+                "[story=\"*\"]"
             ]
         },
         {
@@ -420,7 +420,7 @@ def test_real_model_output(api_key=None):
                 "(对象是一款游戏)",
                 "(类型是角色扮演)",
                 "<游戏角色设计>",
-                "{character_name=\"*\", character_class=\"*\", main_skill=\"*\"}"
+                "[character_name=\"*\", character_class=\"*\", main_skill=\"*\"]"
             ]
         },
         {
@@ -429,7 +429,7 @@ def test_real_model_output(api_key=None):
                 "(场景是冒险者酒馆)",
                 "(角色是讲故事的吟游诗人)",
                 "<一个分支故事，有主要情节和两个选择>",
-                "{story=\"*\", choice1=\"*\", choice2=\"*\"}"
+                "[story=\"*\", choice1=\"*\", choice2=\"*\"]"
             ]
         }
     ]
@@ -501,7 +501,7 @@ def test_simulated_model_output():
                 "(主角是一名骑士)",
                 "(场景是一座古堡)",
                 "<一段冒险故事>",
-                "{story=\"*\"}"
+                "[story=\"*\"]"
             ],
             "mock_response": """
             {
@@ -515,7 +515,7 @@ def test_simulated_model_output():
                 "(对象是一款游戏)",
                 "(类型是角色扮演)",
                 "<游戏角色设计>",
-                "{character_name=\"*\", character_class=\"*\", main_skill=\"*\"}"
+                "[character_name=\"*\", character_class=\"*\", main_skill=\"*\"]"
             ],
             "mock_response": """
             {
@@ -531,7 +531,7 @@ def test_simulated_model_output():
                 "(场景是冒险者酒馆)",
                 "(角色是讲故事的吟游诗人)",
                 "<一个分支故事，有主要情节和两个选择>",
-                "{story=\"*\", choice1=\"*\", choice2=\"*\"}"
+                "[story=\"*\", choice1=\"*\", choice2=\"*\"]"
             ],
             "mock_response": """
             {
@@ -593,10 +593,10 @@ def test_complete_flow(api_key=None):
     
     # 定义输入片段
     input_segments = [
-        "(角色为法师)",
-        "(场景为古老图书馆)",
-        "<一段咒语施放的描述>",
-        "{spell_description=\"*\"}"
+        "(元素系法术)",
+        "(魔法学派: 烈焰门派)",
+        "<设计一个强力的火焰魔法，能够控制范围并减少友方伤害>",
+        "[spell_description=\"*\"]"
     ]
     
     # 构建提示词

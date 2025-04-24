@@ -111,11 +111,11 @@ editor.edit_template("adventure_template")
     "(世界设定: 奇幻世界)",
     "(主角职业: {character.profession})",
     "<描述一段在{location}的冒险经历>",
-    "{story=\"*\"}",
+    "[story=\"*\"]",
     "<提供三个可能的选择>",
-    "{choice1=\"*\", choice2=\"*\", choice3=\"*\"}",
+    "[choice1=\"*\", choice2=\"*\", choice3=\"*\"]",
     "<描述每个选择可能的结果>",
-    "{outcome1=\"*\", outcome2=\"*\", outcome3=\"*\"}"
+    "[outcome1=\"*\", outcome2=\"*\", outcome3=\"*\"]"
   ],
   "required_inputs": [
     "character.profession",

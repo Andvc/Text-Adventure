@@ -20,7 +20,7 @@ def main():
     segments = [
         "(场景是古代中国)",
         "<描述一位武侠人物>",
-        "{name=\"*\", appearance=\"*\", skills=\"*\", famous_saying=\"*\"}"
+        "[name=\"*\", appearance=\"*\", skills=\"*\", famous_saying=\"*\"]"
     ]
     
     # 3. 构建提示词
@@ -110,7 +110,7 @@ print(f"探险故事: {result['adventure']}")
 提示词构建使用三种元素，用不同符号包围：
 - `(信息)` - 背景信息，不影响输出结构
 - `<内容>` - 需要生成的内容类型
-- `{字段="*"}` - 输出的JSON结构
+- `[字段="*"]` - 输出的JSON结构
 
 ### 1. 单字段输出
 
@@ -118,7 +118,7 @@ print(f"探险故事: {result['adventure']}")
 segments = [
     "(用户喜欢科幻内容)",
     "<描述一个未来城市>",
-    "{city_description=\"*\"}"
+    "[city_description=\"*\"]"
 ]
 ```
 
@@ -128,7 +128,7 @@ segments = [
 segments = [
     "(场景是现代都市)",
     "<设计一个科技产品>",
-    "{product_name=\"*\", product_description=\"*\", target_users=\"*\", pricing=\"*\"}"
+    "[product_name=\"*\", product_description=\"*\", target_users=\"*\", pricing=\"*\"]"
 ]
 ```
 
@@ -138,11 +138,11 @@ segments = [
 segments = [
     "(场景是城堡)",
     "<描述王子的外貌>",         # 对应character字段
-    "{character=\"*\"}",
+    "[character=\"*\"]",
     "<描述王子的性格特点>",     # 对应personality字段
-    "{personality=\"*\"}",
+    "[personality=\"*\"]",
     "<描述王子拥有的魔法能力>", # 对应magic_power字段
-    "{magic_power=\"*\"}"
+    "[magic_power=\"*\"]"
 ]
 ```
 
@@ -152,9 +152,9 @@ segments = [
 segments = [
     "(游戏设定)",
     "<讲述故事背景>",
-    "{background=\"*\"}",
+    "[background=\"*\"]",
     "<设计主要角色>",
-    "{hero_name=\"*\", hero_class=\"*\", hero_skills=\"*\"}",
+    "[hero_name=\"*\", hero_class=\"*\", hero_skills=\"*\"]",
 ]
 ```
 

@@ -110,16 +110,16 @@ manager.clear_history()
     "<生成一个引人入胜的场景，考验角色的能力，并提供三个不同的选择方向。>",
     "<每个选择应该对应不同的解决方案，分别侧重力量、敏捷和智力的运用。>",
     "<根据选择预设对应的属性变化。>",
-    "{story=\"*\"}",
-    "{choice1=\"*\"}",
-    "{outcome1=\"*\"}",
-    "{stat_change1=\"*\"}",
-    "{choice2=\"*\"}",
-    "{outcome2=\"*\"}",
-    "{stat_change2=\"*\"}",
-    "{choice3=\"*\"}",
-    "{outcome3=\"*\"}",
-    "{stat_change3=\"*\"}"
+    "[story=\"*\"]",
+    "[choice1=\"*\"]",
+    "[outcome1=\"*\"]",
+    "[stat_change1=\"*\"]",
+    "[choice2=\"*\"]",
+    "[outcome2=\"*\"]",
+    "[stat_change2=\"*\"]",
+    "[choice3=\"*\"]",
+    "[outcome3=\"*\"]",
+    "[stat_change3=\"*\"]"
   ],
   "output_format": {
     "story": "string",
@@ -149,7 +149,7 @@ manager.clear_history()
 1. **提示片段（prompt_segments）**：构建AI提示词的片段，分为：
    - 背景信息：以 `(...)` 包围，如 `(角色姓名: {name})`
    - 内容指令：以 `<...>` 包围，如 `<请描述{name}在{location}遭遇的一次冒险>`
-   - 输出格式：以 `{key="*"}` 格式，如 `{story="*"}`
+   - 输出格式：以 `[key="*"]` 格式，如 `[story="*"]`
 
 2. **输出格式（output_format）**：指定AI返回的JSON字段及其数据类型。
 

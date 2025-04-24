@@ -20,6 +20,7 @@ DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
 
 # 提示词模板 - JSON格式
+# 注意：这里使用了双大括号 {{ 和 }} 来在格式化字符串中表示单个大括号
 DEFAULT_PROMPT_TEMPLATE = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释：
 
 {{

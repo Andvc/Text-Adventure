@@ -139,7 +139,7 @@ class TemplateBuilder:
         
         # 添加提示片段
         print("\n添加提示片段 (输入空行结束)")
-        print("提示: 使用 (内容) 表示背景信息，<内容> 表示内容指令，{key=\"*\"} 表示输出格式")
+        print("提示: 使用 (内容) 表示背景信息，<内容> 表示内容指令，[key=\"*\"] 表示输出格式")
         while True:
             segment = input("片段: ").strip()
             if not segment:

@@ -368,7 +368,7 @@ class TemplateEditor:
         help_text = (
             "1. 背景信息: 使用 (内容) 格式，例如 (世界设定: {world_setting})\n"
             "2. 内容指令: 使用 <内容> 格式，例如 <描述一段在{location}的冒险>\n"
-            "3. 输出格式: 使用 {key=\"*\"} 格式，例如 {story=\"*\"}\n"
+            "3. 输出格式: 使用 [key=\"*\"] 格式，例如 [story=\"*\"]\n"
             "4. 角色属性引用: 使用 {属性名} 格式，例如 {name} 或 {力量}\n"
             "   - 所有角色属性都可以直接引用，无需预定义输入变量"
         )
@@ -399,7 +399,7 @@ class TemplateEditor:
             self.segment_type.set("background")
         elif segment.startswith("<") and segment.endswith(">"):
             self.segment_type.set("content")
-        elif segment.startswith("{") and segment.endswith("}"):
+        elif segment.startswith("[") and segment.endswith("]"):
             self.segment_type.set("format")
     
     def _add_update_segment(self) -> None:
@@ -424,10 +424,10 @@ class TemplateEditor:
             if not segment_text.endswith(">"):
                 segment_text = segment_text + ">"
         elif segment_type == "format":
-            if not segment_text.startswith("{"):
-                segment_text = "{" + segment_text
-            if not segment_text.endswith("}"):
-                segment_text = segment_text + "}"
+            if not segment_text.startswith("["):
+                segment_text = "[" + segment_text
+            if not segment_text.endswith("]"):
+                segment_text = segment_text + "]"
         
         # 检查是新增还是更新
         selection = self.segments_list.curselection()
@@ -1883,19 +1883,21 @@ class TemplateEditor:
     
     def _refresh_preview(self) -> None:
         """刷新JSON预览"""
-        # 构建模板数据
-        template = self._build_template_data()
+        if not self.current_template:
+            return
         
-        # 更新预览
-        self.preview_text.delete("1.0", tk.END)
-        
-        if template:
-            # 格式化JSON
-            try:
-                json_text = json.dumps(template, indent=2, ensure_ascii=False)
-                self.preview_text.insert(tk.END, json_text)
-            except Exception as e:
-                self.preview_text.insert(tk.END, f"JSON格式错误: {str(e)}")
+        try:
+            # 构建模板数据
+            template = self._build_template_data()
+            
+            # 设置预览文本
+            self.preview_text.delete("1.0", tk.END)
+            formatted = json.dumps(template, indent=2, ensure_ascii=False)
+            self.preview_text.insert(tk.END, formatted)
+            
+        except Exception as e:
+            self.preview_text.delete("1.0", tk.END)
+            self.preview_text.insert(tk.END, f"JSON格式错误: {str(e)}")
 
     def _setup_prompt_processor_tab(self, parent: ttk.Frame) -> None:
         """设置提示词处理选项卡
@@ -1945,11 +1947,12 @@ class TemplateEditor:
         help_frame.pack(fill=tk.X, pady=10)
         
         help_text = (
-            "- 提示词模板用于控制如何将片段组合成完整提示词\n"
-            "- 可用占位符：\n"
+            "# 提示词模板说明\n\n"
+            "提示词模板定义了如何将提示片段组合成完整的提示词。\n\n"
+            "## 常用占位符\n\n"
             "  • {background} - 将被替换为所有背景信息片段 (用括号标记的片段)\n"
             "  • {content} - 将被替换为所有内容指令片段 (用尖括号标记的片段)\n"
-            "  • {format} - 将被替换为所有输出格式片段 (用花括号标记的片段)\n"
+            "  • {format} - 将被替换为所有输出格式片段 (用方括号标记的片段)\n"
             "  • {input_info} - 所有背景信息片段组合\n"
             "  • {output_content} - 内容片段内容\n"
             "  • {output_key} - 输出字段名\n"

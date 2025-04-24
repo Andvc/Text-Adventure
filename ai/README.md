@@ -58,7 +58,7 @@ processor = PromptProcessor()
 segments = [
     "(角色是探险家)",
     "<描述一段探险经历>",
-    "{adventure=\"*\"}"
+    "[adventure=\"*\"]"
 ]
 prompt = processor.build_prompt(segments)
 
@@ -87,10 +87,13 @@ processor = PromptProcessor()
 
 # 定义输入片段
 segments = [
-    "(场景是海盗船)",
-    "(时间是黄金时代)",
-    "<描述一位传奇海盗船长>",
-    "{pirate_name=\"*\", appearance=\"*\", famous_deeds=\"*\"}"
+    "(场景是城堡)",
+    "<描述王子的外貌>",        # 对应character字段
+    "[character=\"*\"]",
+    "<描述王子的性格特点>",    # 对应personality字段
+    "[personality=\"*\"]",
+    "<描述王子拥有的魔法能力>", # 对应magic_power字段
+    "[magic_power=\"*\"]"
 ]
 
 # 构建提示词
@@ -182,12 +185,12 @@ print(f"著名事迹数量: {len(result['famous_deeds'].split('、'))}")
 提供三种提示词元素，可灵活组合：
 - `(信息)` - 提供上下文信息，用括号包围
 - `<内容>` - 指定生成内容的类型，用尖括号包围
-- `{字段="*"}` - 定义输出格式，用花括号包围
+- `[字段="*"]` - 定义输出格式，用方括号包围
 
 每种元素的作用：
 - **信息元素**(括号): 为模型提供背景信息，不直接影响输出结构
 - **内容元素**(尖括号): 描述需要生成的内容类型
-- **格式元素**(花括号): 定义输出的JSON结构
+- **格式元素**(方括号): 定义输出的JSON结构
 
 ### 内容格式配对
 
@@ -197,16 +200,16 @@ print(f"著名事迹数量: {len(result['famous_deeds'].split('、'))}")
 segments = [
     "(场景是城堡)",
     "<描述王子的外貌>",        # 对应character字段
-    "{character=\"*\"}",
+    "[character=\"*\"]",
     "<描述王子的性格特点>",    # 对应personality字段
-    "{personality=\"*\"}",
+    "[personality=\"*\"]",
     "<描述王子拥有的魔法能力>", # 对应magic_power字段
-    "{magic_power=\"*\"}"
+    "[magic_power=\"*\"]"
 ]
 ```
 
 **工作原理**:
-1. 系统识别相邻的`<内容>`和`{格式}`对
+1. 系统识别相邻的`<内容>`和`[格式]`对
 2. 将内容描述与对应字段匹配
 3. 生成清晰的提示词指导
 
@@ -236,7 +239,7 @@ segments = [
 segments = [
     "(场景是现代都市)",
     "<设计一个虚构的科技产品>",
-    "{product_name=\"*\", product_description=\"*\", target_users=\"*\", pricing=\"*\"}"
+    "[product_name=\"*\", product_description=\"*\", target_users=\"*\", pricing=\"*\"]"
 ]
 ```
 

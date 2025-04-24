@@ -31,8 +31,8 @@ class PromptProcessor:
         result = {
             "info": [],      # () 包围的信息类提示词
             "content": [],   # <> 包围的输出内容类提示词
-            "format": [],    # {} 包围的输出格式类提示词
-            "pairs": []      # 按顺序配对的<内容>和{格式}
+            "format": [],    # [] 包围的输出格式类提示词
+            "pairs": []      # 按顺序配对的<内容>和[格式]
         }
         
         # 先按类型分类所有片段
@@ -44,7 +44,7 @@ class PromptProcessor:
             elif segment.startswith("<") and segment.endswith(">"):
                 # 输出内容类提示词
                 result["content"].append(segment[1:-1])
-            elif segment.startswith("{") and segment.endswith("}"):
+            elif segment.startswith("[") and segment.endswith("]"):
                 # 输出格式类提示词
                 result["format"].append(segment[1:-1])
         
@@ -55,7 +55,7 @@ class PromptProcessor:
             current = segments[i].strip()
             next_seg = segments[i + 1].strip()
             
-            if current.startswith("<") and current.endswith(">") and next_seg.startswith("{") and next_seg.endswith("}"):
+            if current.startswith("<") and current.endswith(">") and next_seg.startswith("[") and next_seg.endswith("]"):
                 # 找到一对配对的内容和格式
                 content_formats.append({
                     "content": current[1:-1],
