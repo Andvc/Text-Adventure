@@ -14,8 +14,11 @@ Text Adventure/
 ├── gameflow/          # 游戏流程模块 - 控制游戏进程
 │   └── starting/      # 游戏开局流程
 ├── storyline/         # 故事线模块 - 故事模板与剧情生成
+│   └── templates/     # 故事模板存储目录
 ├── save/              # 游戏存档目录
+├── test/              # 测试文件目录
 ├── main.py            # 游戏主入口
+├── config.py          # 配置文件
 ├── .env               # 环境变量配置
 └── README.md          # 本文档
 ```
@@ -24,16 +27,16 @@ Text Adventure/
 
 ### AI模块
 
-AI模块提供了构建AI提示词、调用大模型API并解析JSON格式响应的功能。详细文档请参考[AI模块说明](ai/README.md)和[AI模块使用指南](ai/user_guide.md)。
+AI模块提供了构建AI提示词、调用大模型API并解析JSON格式响应的功能。详细文档请参考[AI模块说明](ai/README.md)。
 
 主要功能：
-- 提示词构建与处理
-- API连接与调用
-- 结果解析与结构化
+- 提示词构建与处理（`prompt_processor.py`）
+- API连接与调用（`api_connector.py`）
+- 结果解析与结构化（`output_parsers.py`）
 
 ### 角色模块
 
-角色模块负责管理游戏中角色的属性数据，支持创建、读取、修改和删除角色属性。详细文档请参考[角色模块说明](character/README.md)和[角色模块使用指南](character/user_guide.md)。
+角色模块负责管理游戏中角色的属性数据，支持创建、读取、修改和删除角色属性。详细文档请参考[角色模块说明](character/README.md)。
 
 主要功能：
 - 基本属性操作
@@ -56,9 +59,9 @@ AI模块提供了构建AI提示词、调用大模型API并解析JSON格式响应
 游戏流程模块负责调度和管理整个游戏流程，包括开局设定、主循环和结局处理。
 
 主要功能：
-- 主菜单系统
+- 主菜单系统（`core.py`）
 - 游戏开局流程
-- 世界观设定
+- 世界观设定（`starting/world_setting.py`）
 - 角色创建（计划中）
 - 游戏存档加载
 
@@ -147,143 +150,127 @@ python3 main.py
 
 游戏将显示主菜单，可以选择开始新游戏或加载已有游戏。
 
-### 运行集成测试程序
+### 运行测试程序
+
+项目包含多个测试文件，用于验证各模块功能：
 
 ```bash
-python3 test_integration.py
+# AI模块测试
+python3 test/ai_test.py
+
+# 数据访问测试
+python3 test/test_data_access.py
+
+# 存档系统测试
+python3 test/test_save_system.py
+
+# 存档内存管理测试
+python3 test/test_save_memory.py
+
+# 简单循环周期测试
+python3 test/test_simple_loop_cycle.py
 ```
 
-集成测试展示了以下功能：
+这些测试展示了核心功能，包括：
 1. 创建角色属性
 2. 使用角色属性构建AI提示词
 3. 调用API生成故事和选择
 4. 根据选择更新角色属性
+5. 数据访问和存档管理
 
 ## 模块组合示例
 
-### 创建角色并生成故事 (简化版API)
+### 创建角色并生成故事
 
 ```python
 # 导入角色模块
-from character.character_manager import create_attribute, get_attribute
+from character.character_manager import get_attribute, set_attribute, configure_save_system
 
 # 导入故事线模块
 from storyline.storyline_manager import StorylineManager
 
-# 创建角色属性
-create_attribute("name", "李逍遥")
-create_attribute("background", "自小在山野长大的少年，性格乐观开朗")
-create_attribute("力量", 8)
-create_attribute("敏捷", 12)
-create_attribute("智力", 10)
+# 配置存档系统
+configure_save_system()
+
+# 创建基本角色属性
+set_attribute("姓名", "李逍遥")
+set_attribute("世界", "奇幻大陆")
+set_attribute("境界", "炼气期")
+set_attribute("故事梗概", "少年李逍遥无意间获得一本古老的功法，开始了修仙之路。")
+set_attribute("当前事件", "李逍遥来到了一座神秘的洞穴前，传说里面藏有珍贵的宝物。")
+set_attribute("事件选择", "探索洞穴")
 
 # 初始化故事线管理器
 manager = StorylineManager()
 
-# 生成故事（自动使用角色属性）
-story_content, choices, story_id = manager.generate_story("adventure_template")
+# 生成故事（会自动使用和更新角色属性）
+story_content, choices, story_id = manager.generate_story("simple_loop")
 
-# 显示故事
-print(story_content)
+# 显示生成的故事
+print("【故事内容】")
+print(get_attribute("当前事件"))
 
 # 显示选择
-for choice in choices:
-    print(f"{choice['id'] + 1}. {choice['text']}")
+print("\n【可选选项】")
+for i, choice in enumerate([get_attribute("选项1"), get_attribute("选项2"), get_attribute("选项3")]):
+    print(f"{i+1}. {choice}")
 
-# 选择一个选项并应用属性变化
-manager.make_choice(story_id, 0)  # 选择第一个选项
+# 进行选择并记录
+choice_index = 0  # 选择第一个选项
+set_attribute("事件选择", get_attribute("选项1"))
 
-# 角色属性已自动更新
-print(f"力量: {get_attribute('力量')}")
+# 再次生成故事，继续情节
+story_content, choices, story_id = manager.generate_story("simple_loop")
 ```
 
-### 自动存储映射
+### 模板配置与存储映射
 
-使用模板的`output_storage`字段配置自动存储映射：
+故事模板通过JSON文件定义，包括提示片段、输出格式和存储映射：
 
 ```json
 {
-  "template_id": "adventure_template",
-  "name": "冒险模板",
-  "prompt_segments": ["..."],
+  "template_id": "simple_loop",
+  "name": "简单循环测试模板",
+  "prompt_segments": [
+    "(主角名称：{姓名})",
+    "(背景世界:{世界})",
+    "(主角境界:{境界})",
+    "(全局故事梗概:{故事梗概})",
+    "(当前事件:{当前事件})",
+    "(事件选择:{事件选择})",
+    "..."
+  ],
   "output_storage": {
-    "story": "current_story",
-    "choice1": "option1",
-    "choice2": "option2",
-    "choice3": "option3",
-    "content": "story_content"
+    "story": "当前事件",
+    "content": "故事梗概",
+    "choice1": "选项1",
+    "choice2": "选项2",
+    "choice3": "选项3"
   }
 }
 ```
 
-使用模板编辑器的"输出存储"选项卡，可以可视化地配置这些映射关系。当模板执行时，系统会自动将输出字段存储到对应的角色属性中。
+使用模板编辑器可以可视化地配置这些映射关系。当模板执行时，系统会自动将输出字段存储到对应的角色属性中。
 
-## 系统简化与改进
+## 设计理念
 
-## 设计理念的转变
+本引擎的设计遵循以下核心理念：
 
-在本次重构中，我们对系统进行了彻底的简化，移除了不必要的复杂性，使得整个故事生成系统更加直观和易于使用。主要改进包括：
+1. **属性驱动**：系统直接使用角色属性进行模板渲染，简化了变量管理
+2. **模块化结构**：各功能模块高度分离，便于维护和扩展
+3. **自包含模板**：每个模板是一个完整的事件单元，包含输出格式、存储映射和属性变化
+4. **简洁API**：提供直观的接口，让每个方法的功能更加清晰
+5. **统一数据流**：属性存储系统统一，模板可定义输出映射到角色属性
+6. **易于使用**：编辑工具提供直观界面，包括提示片段管理、输出格式配置等功能
 
-1. **直接使用角色属性**：移除了内外变量转换的复杂性，模板直接使用角色属性进行渲染
-2. **简化的API设计**：减少API方法数量，让每个方法的功能更加清晰
-3. **自包含的模板**：每个模板现在是一个完整的事件单元，包含输出格式、存储映射和属性变化
-4. **统一的接口**：提供直观的界面，将相关功能整合到同一选项卡
-5. **去除不必要功能**：移除模板链接配置等复杂功能，让用户对故事流程有更直接的控制
-
-## 主要改动
-
-### StorylineManager改进
-
-1. **直接属性访问**：
-   - 移除了`required_inputs`和内部变量，直接使用角色属性
-   - 使用`_replace_placeholders`方法自动处理属性占位符
-
-2. **简化API**：
-   - `generate_story(template_id)` - 直接生成故事，自动应用存储映射
-   - `make_choice(story_id, choice_index)` - 执行选择，应用属性变化
-
-3. **存储重设计**：
-   - 统一的属性存储系统，每个模板可以定义`output_storage`字段
-   - 自动创建或更新角色属性，无需手动调用存储方法
-
-### 模板编辑器重构
-
-1. **重新设计的选项卡**：
-   - **基本信息**：常规的模板元数据
-   - **提示片段**：直接引用角色属性的提示片段管理
-   - **输出和存储**：整合输出格式和存储映射到一个界面
-   - **角色属性**：浏览并引用当前角色属性
-   - **提示词处理**：测试和定制提示词模板
-   - **JSON预览**：查看完整的模板格式
-
-2. **简化的工作流程**：
-   - 双击属性可直接插入到片段编辑器
-   - 右键菜单提供常用操作
-   - 使用提示和帮助说明减少学习成本
-
-3. **模板结构优化**：
-   - 移除`required_inputs`字段
-   - 移除`next_templates`配置
-   - 添加统一的`output_storage`映射
-
-## 使用示例
-
-新系统使用起来更加简单直接：
-
-```python
-# 初始化管理器
-manager = StorylineManager()
-
-# 直接生成故事，自动使用角色属性
-story_content, choices, story_id = manager.generate_story("adventure_template")
-
-# 选择一个选项，自动应用属性变化
-manager.make_choice(story_id, 0)  # 选择第一个选项
-```
+系统支持多种简化的开发工作流程：
+- 双击属性可直接插入到片段编辑器
+- 右键菜单提供常用操作
+- 使用提示和帮助说明减少学习成本
 
 ## 总结
 
-这次重构将复杂的变量转换和模板关联转变为直观的属性引用和独立模板，极大地降低了系统的复杂度和学习门槛。新系统提供了更加简洁和一致的用户体验，同时保留了原有系统的核心功能。
+文字冒险游戏引擎采用直观的属性引用和独立模板设计，具有简单的API和统一的属性存储系统，为开发者提供了一个高度可定制的故事生成框架。系统具有模块化结构，分离了角色管理、故事生成和游戏流程控制等功能，可以轻松扩展和定制。
 
 ## 许可证
 
