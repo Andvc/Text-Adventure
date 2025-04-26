@@ -45,29 +45,30 @@ create_attribute("location", "古老的森林")
 manager = StorylineManager()
 
 # 生成故事（自动使用角色属性）
-story_content, choices, story_id = manager.generate_story("adventure_template")
+# 注意：generate_story函数现在返回布尔值表示成功与否，
+# 而不是之前的(story_content, choices, story_id)元组
+# 故事内容和选项会自动保存到角色属性中
+success = manager.generate_story("adventure_template")
 
-# 显示故事内容
-print(story_content)
+# 显示故事内容（从角色属性中获取）
+print(get_attribute("current_story"))
 
-# 显示可用选择
+# 显示可用选择（从角色属性中获取）
+choices = [get_attribute("option1"), get_attribute("option2"), get_attribute("option3")]
 for i, choice in enumerate(choices):
-    print(f"{i+1}. {choice['text']}")
+    print(f"{i+1}. {choice}")
 ```
 
 ### 2. 选择分支
 
+**注意**：make_choice函数已被移除。现在应该直接使用Character模块的set_attribute函数来更新选择：
+
 ```python
-# 选择第一个选项
-choice_index = 0
-
-# 执行选择，自动应用属性变化
-manager.make_choice(story_id, choice_index)
-
-# 查看属性变化
-print(f"力量: {get_attribute('力量')}")
-print(f"最后选择: {get_attribute('last_choice')}")
+# 直接将选择存储到角色属性
+set_attribute("事件选择", choice_option)
 ```
+
+这种方式更加直接和灵活，使用角色属性系统来管理选择结果。
 
 ### 3. 获取和保存故事记录
 
@@ -190,26 +191,27 @@ manager.delete_template("old_template_id")
 
 ```python
 # 生成故事
-story_content, choices, story_id = manager.generate_story(
+success = manager.generate_story(
     template_id,             # 模板ID
     use_template_storage=True # 是否应用模板中的存储映射
 )
 ```
 
 返回值：
-- `story_content`：故事内容文本
-- `choices`：选项列表，每个选项是包含id、text和outcome的字典
-- `story_id`：故事ID，用于后续操作
+- `success`：布尔值，表示故事生成是否成功
+
+**注意**：生成的故事内容和选项会根据模板的output_storage设置直接保存到角色属性中，可以通过Character模块的get_attribute函数获取。
 
 #### 选择分支
 
+**注意**：make_choice函数已被移除。现在应该直接使用Character模块的set_attribute函数来更新选择：
+
 ```python
-# 根据玩家选择应用属性变化
-manager.make_choice(story_id, choice_index)
+# 直接将选择存储到角色属性
+set_attribute("事件选择", choice_option)
 ```
 
-- `story_id`：故事ID
-- `choice_index`：选择的索引（从0开始）
+这种方式更加直接和灵活，使用角色属性系统来管理选择结果。
 
 #### 故事记录管理
 

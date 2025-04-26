@@ -18,7 +18,8 @@ import textwrap
 
 # 修复导入路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
+parent_dir = os.path.dirname(current_dir)  # 获取父目录（项目根目录）
+sys.path.insert(0, parent_dir)  # 将项目根目录添加到导入路径
 
 # 导入故事线模块
 from storyline.storyline_manager import StorylineManager
@@ -188,7 +189,9 @@ class SimpleLoopTester:
             self.print_section("生成故事", "正在使用simple_loop模板生成故事...")
             
             # 生成故事（将会存储到角色属性中）
-            _, _, _ = self.manager.generate_story("simple_loop")
+            success = self.manager.generate_story("simple_loop")
+            if not success:
+                raise ValueError("生成故事失败：调用generate_story返回失败")
             
             # 直接从角色属性中获取当前故事
             current_story = get_attribute("当前事件")

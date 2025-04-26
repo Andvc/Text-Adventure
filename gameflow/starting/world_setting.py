@@ -199,7 +199,10 @@ class WorldSettingFlow:
         print("\n正在生成世界背景...")
         try:
             # 调用世界设定模板，生成完整世界观
-            _, _, _ = self.manager.generate_story("world_setting")
+            success = self.manager.generate_story("world_setting")
+            if not success:
+                print("生成世界设定失败")
+                return False
             
             # 获取生成结果
             world_data = self._collect_generated_world_data()

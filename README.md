@@ -204,7 +204,7 @@ set_attribute("事件选择", "探索洞穴")
 manager = StorylineManager()
 
 # 生成故事（会自动使用和更新角色属性）
-story_content, choices, story_id = manager.generate_story("simple_loop")
+success = manager.generate_story("simple_loop")
 
 # 显示生成的故事
 print("【故事内容】")
@@ -220,7 +220,7 @@ choice_index = 0  # 选择第一个选项
 set_attribute("事件选择", get_attribute("选项1"))
 
 # 再次生成故事，继续情节
-story_content, choices, story_id = manager.generate_story("simple_loop")
+success = manager.generate_story("simple_loop")
 ```
 
 ### 模板配置与存储映射

@@ -222,7 +222,7 @@ class StorylineManager:
             processed_segments.append(self._replace_placeholders(segment))
         return processed_segments
     
-    def generate_story(self, template_id: str, use_template_storage: bool = True) -> Tuple[str, List[Dict[str, Any]], str]:
+    def generate_story(self, template_id: str, use_template_storage: bool = True) -> bool:
         """生成故事内容
         
         Args:
@@ -230,13 +230,13 @@ class StorylineManager:
             use_template_storage: 是否应用模板中定义的存储映射
             
         Returns:
-            元组 (主要内容, 选项列表, 故事ID)
+            bool: 生成是否成功
         """
         # 加载模板
         template = self.load_template(template_id)
         if not template:
             print(f"模板 {template_id} 不存在")
-            return "", [], ""
+            return False
         
         # 处理提示片段
         prompt_segments = template.get("prompt_segments", [])
@@ -256,38 +256,14 @@ class StorylineManager:
             result = OutputParser.parse(response)
         except Exception as e:
             print(f"生成故事失败: {str(e)}")
-            return "", [], ""
-        
-        # 生成唯一ID（用于API返回值）
-        story_id = str(uuid.uuid4())
-        
-        # 提取主要内容（从模板配置或默认使用"story"字段）
-        main_field = template.get("main_content_field", "story")
-        main_content = result.get(main_field, "")
-        
-        # 收集所有选项
-        choices = []
-        
-        # 从result中找出所有以"choice"开头的字段
-        choice_fields = [k for k in result.keys() if k.startswith("choice") and k[6:].isdigit()]
-        choice_fields.sort(key=lambda x: int(x[6:]))  # 按数字排序
-        
-        for i, choice_field in enumerate(choice_fields):
-            choice_text = result[choice_field]
-            if not choice_text:
-                continue
-                
-            choices.append({
-                "id": i,
-                "text": choice_text,
-                "field": choice_field  # 记录原始字段名，用于后续处理
-            })
+            return False
         
         # 存储输出到角色属性
         if use_template_storage and "output_storage" in template and CHARACTER_MODULE_AVAILABLE:
             self._apply_storage_mapping(result, template["output_storage"])
+            return True
         
-        return main_content, choices, story_id
+        return False
     
     def _apply_storage_mapping(self, result: Dict[str, Any], mapping: Dict[str, str]) -> None:
         """应用存储映射，将输出存储到角色属性
@@ -315,42 +291,3 @@ class StorylineManager:
                         print(f"创建属性: {attr_name}")
                 except Exception as e:
                     print(f"存储属性失败 {attr_name}: {str(e)}")
-    
-    def make_choice(self, story_id: str, choice_index: int) -> None:
-        """执行选择（简化版本，仅更新事件选择属性）
-        
-        Args:
-            story_id: 故事ID（为兼容旧代码保留此参数，但不再使用）
-            choice_index: 选择索引（从0开始）
-        """
-        # 由于不再使用story_history，只需从角色属性中获取选项并更新事件选择
-        if not CHARACTER_MODULE_AVAILABLE:
-            print("角色模块不可用，无法更新选择")
-            return
-            
-        # 尝试从属性中获取选项列表
-        # 检查常见的选项属性命名
-        all_attrs = character_manager.get_all_attributes()
-        options = []
-        
-        # 扫描可能的选项属性
-        option_names = ["选项1", "选项2", "选项3", "option1", "option2", "option3"]
-        for name in option_names:
-            if name in all_attrs and all_attrs[name]:
-                options.append(all_attrs[name])
-        
-        # 验证选择索引
-        if not options:
-            print("未找到选项属性")
-            return
-            
-        if choice_index < 0 or choice_index >= len(options):
-            print(f"无效的选择索引: {choice_index}")
-            return
-        
-        # 更新事件选择属性
-        try:
-            character_manager.set_attribute("事件选择", options[choice_index])
-            print(f"更新事件选择: {options[choice_index]}")
-        except Exception as e:
-            print(f"设置事件选择失败: {str(e)}")
