@@ -1,0 +1,10 @@
+{
+    "detail1": {
+        "file_path": "worlds/world_background",
+        "fields": ["world_id", "name", "description"]
+    },
+    "detail2": {
+        "file_path": "worlds/world_background",
+        "fields": ["layers.layer1.name", "layers.layer2.name"]
+    }
+} 

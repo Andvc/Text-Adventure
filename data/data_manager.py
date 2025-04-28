@@ -161,6 +161,97 @@ class DataManager:
         
         return count
 
+    def get_nested_data_value(self, data_type, file_name, path, default=None):
+        """
+        从数据文件中获取嵌套路径的值
+        
+        参数:
+            data_type (str): 数据类型，如'text'、'images'等
+            file_name (str): 文件名（不含扩展名）
+            path (str): 数据路径，使用点号分隔，如 'layers.layer1.name'
+            default: 默认值，如果数据不存在则返回此值
+            
+        返回:
+            任意类型: 数据值或默认值
+        """
+        data = self.read_data_file(data_type, file_name)
+        if data is None:
+            return default
+        
+        try:
+            # 分割路径
+            keys = path.split('.')
+            result = data
+            
+            # 逐层访问
+            for key in keys:
+                if isinstance(result, dict):
+                    result = result.get(key, default)
+                else:
+                    return default
+                
+            return result
+        except Exception as e:
+            print(f"获取嵌套数据 '{path}' 失败: {str(e)}")
+            return default
+
+    def get_indexed_data(self, index_file, detail_type):
+        """
+        根据索引文件获取指定类型的所有数据
+        
+        参数:
+            index_file (str): 索引文件名（不含扩展名）
+            detail_type (str): 数据类型，如 'detail1', 'detail2'
+            
+        返回:
+            dict: 包含所有请求字段的数据字典
+        """
+        try:
+            # 读取索引文件
+            index_path = os.path.join(self._data_dir, "index", f"{index_file}.json")
+            if not os.path.exists(index_path):
+                print(f"索引文件 '{index_path}' 不存在")
+                return None
+            
+            with open(index_path, 'r', encoding='utf-8') as f:
+                index_data = json.load(f)
+            
+            # 获取指定类型的配置
+            detail_config = index_data.get(detail_type)
+            if detail_config is None:
+                print(f"类型 '{detail_type}' 在索引文件中不存在")
+                return None
+            
+            # 获取文件路径和字段列表
+            file_path = detail_config.get('file_path')
+            fields = detail_config.get('fields', [])
+            
+            if not file_path or not fields:
+                print(f"索引配置不完整: {detail_config}")
+                return None
+            
+            # 读取目标文件
+            target_data = self.read_data_file('text', file_path)
+            if target_data is None:
+                print(f"目标文件 '{file_path}' 不存在")
+                return None
+            
+            # 提取数据
+            result = {}
+            for field in fields:
+                if '.' in field:
+                    # 使用嵌套数据获取函数
+                    value = self.get_nested_data_value('text', file_path, field)
+                else:
+                    # 使用普通数据获取函数
+                    value = self.get_data_value('text', file_path, field)
+                result[field] = value
+            
+            return result
+        except Exception as e:
+            print(f"获取索引数据失败: {str(e)}")
+            return None
+
 # 公共接口函数
 
 def configure_data_system(data_dir=None):
@@ -244,6 +335,34 @@ def clear_cache(data_type=None, file_name=None):
         int: 清除的缓存条目数量
     """
     return data_manager.clear_cache(data_type, file_name)
+
+def get_nested_data_value(data_type, file_name, path, default=None):
+    """
+    从数据文件中获取嵌套路径的值
+    
+    参数:
+        data_type (str): 数据类型，如'text'、'images'等
+        file_name (str): 文件名（不含扩展名）
+        path (str): 数据路径，使用点号分隔，如 'layers.layer1.name'
+        default: 默认值，如果数据不存在则返回此值
+        
+    返回:
+        任意类型: 数据值或默认值
+    """
+    return data_manager.get_nested_data_value(data_type, file_name, path, default)
+
+def get_indexed_data(index_file, detail_type):
+    """
+    根据索引文件获取指定类型的所有数据
+    
+    参数:
+        index_file (str): 索引文件名（不含扩展名）
+        detail_type (str): 数据类型，如 'detail1', 'detail2'
+        
+    返回:
+        dict: 包含所有请求字段的数据字典
+    """
+    return data_manager.get_indexed_data(index_file, detail_type)
 
 # 初始化数据管理器
 configure_data_system() 
