@@ -1,8 +1,8 @@
 """
-故事线管理器 (简化版)
+故事线管理模块 - 负责管理和生成故事内容
 
 这个模块负责故事模板的管理和故事内容的生成。
-它直接使用角色模块的属性，避免不必要的变量转换。
+它直接使用数据模块的存档数据，避免不必要的变量转换。
 """
 
 import os
@@ -17,18 +17,19 @@ from ai.prompt_processor import PromptProcessor
 from ai.api_connector import AIModelConnector
 from ai.output_parsers import OutputParser
 
-# 导入角色模块组件
-try:
-    from character import character_manager
-    CHARACTER_MODULE_AVAILABLE = True
-except ImportError:
-    CHARACTER_MODULE_AVAILABLE = False
-    print("警告：未能导入角色模块，角色属性功能将不可用")
+# 导入数据模块组件
+from data.data_manager import (
+    get_save_value,
+    get_nested_save_value,
+    get_indexed_save,
+    load_save,
+    save_data
+)
 
 class StorylineManager:
     """故事线管理器，负责模板管理和故事生成
     
-    简化版管理器直接使用角色属性，无需内外变量转换
+    简化版管理器直接使用存档数据，无需内外变量转换
     """
     
     def __init__(self, templates_dir: Optional[str] = None):
@@ -166,128 +167,147 @@ class StorylineManager:
         
         return False
     
-    def _replace_placeholders(self, text: str) -> str:
-        """替换文本中的角色属性占位符
+    def _replace_placeholders(self, text: str, save_data: Dict[str, Any]) -> str:
+        """替换文本中的占位符
         
         Args:
             text: 包含占位符的文本
+            save_data: 存档数据
             
         Returns:
             替换后的文本
         """
-        if not CHARACTER_MODULE_AVAILABLE:
-            return text
-            
-        # 获取所有角色属性
-        all_attributes = character_manager.get_all_attributes()
-        
         # 替换基本属性占位符
-        for attr_name, attr_value in all_attributes.items():
-            placeholder = "{" + attr_name + "}"
-            if placeholder in text:
-                text = text.replace(placeholder, str(attr_value))
-                
-            # 处理character.xxx格式
-            character_placeholder = "{character." + attr_name + "}"
-            if character_placeholder in text:
-                text = text.replace(character_placeholder, str(attr_value))
-        
-        # 处理装备等复杂结构
-        if "equipment" in all_attributes and isinstance(all_attributes["equipment"], dict):
-            for item_name, item_value in all_attributes["equipment"].items():
-                placeholder = "{equipment." + item_name + "}"
+        for key, value in save_data.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, list):
+                        # 处理数组
+                        for i, item in enumerate(sub_value):
+                            placeholder = "{" + f"{key}.{sub_key}[{i}]" + "}"
+                            if placeholder in text:
+                                text = text.replace(placeholder, str(item))
+                    else:
+                        # 处理普通值
+                        placeholder = "{" + f"{key}.{sub_key}" + "}"
+                        if placeholder in text:
+                            text = text.replace(placeholder, str(sub_value))
+            else:
+                placeholder = "{" + key + "}"
                 if placeholder in text:
-                    text = text.replace(placeholder, str(item_value))
+                    text = text.replace(placeholder, str(value))
         
         # 添加一些通用默认值
-        if "{world_setting}" in text and "world_setting" not in all_attributes:
+        if "{world_setting}" in text and "world" not in save_data:
             text = text.replace("{world_setting}", "奇幻世界")
             
-        if "{location}" in text and "location" not in all_attributes:
+        if "{location}" in text and "location" not in save_data:
             text = text.replace("{location}", "神秘之地")
             
         return text
     
-    def _process_template_segments(self, segments: List[str]) -> List[str]:
-        """处理模板片段，替换其中的角色属性占位符
+    def _process_template_segments(self, segments: List[str], save_data: Dict[str, Any]) -> List[str]:
+        """处理模板片段，替换其中的存档数据占位符
         
         Args:
             segments: 模板片段列表
+            save_data: 存档数据
             
         Returns:
             处理后的片段列表
         """
         processed_segments = []
         for segment in segments:
-            processed_segments.append(self._replace_placeholders(segment))
+            processed_segments.append(self._replace_placeholders(segment, save_data))
         return processed_segments
     
-    def generate_story(self, template_id: str, use_template_storage: bool = True) -> bool:
+    def generate_story(self, save_name: str, template_id: str, use_template_storage: bool = True) -> bool:
         """生成故事内容
         
         Args:
+            save_name: 存档名称
             template_id: 模板ID
             use_template_storage: 是否应用模板中定义的存储映射
             
         Returns:
             bool: 生成是否成功
         """
+        # 加载存档数据
+        current_save = load_save("character", save_name)
+        if current_save is None:
+            print(f"存档 '{save_name}' 不存在")
+            return False
+        
+        # 保存原有的selected_choice
+        selected_choice = current_save.get('selected_choice', '')
+        
         # 加载模板
         template = self.load_template(template_id)
         if not template:
             print(f"模板 {template_id} 不存在")
             return False
         
-        # 处理提示片段
-        prompt_segments = template.get("prompt_segments", [])
-        processed_segments = self._process_template_segments(prompt_segments)
-        
-        # 使用自定义或默认提示词模板
-        if "prompt_template" in template:
-            custom_template = template["prompt_template"]
-            custom_processor = PromptProcessor(custom_template)
-            prompt = custom_processor.build_prompt(processed_segments)
-        else:
-            prompt = self.prompt_processor.build_prompt(processed_segments)
-        
-        # 调用AI生成内容
         try:
+            # 处理提示片段
+            prompt_segments = template.get("prompt_segments", [])
+            processed_segments = self._process_template_segments(prompt_segments, current_save)
+            
+            print("\n=== 处理后的提示词片段 ===")
+            for segment in processed_segments:
+                print(segment)
+            print("=======================\n")
+            
+            # 使用自定义或默认提示词模板
+            if "prompt_template" in template:
+                custom_template = template["prompt_template"]
+                custom_processor = PromptProcessor(custom_template)
+                prompt = custom_processor.build_prompt(processed_segments)
+            else:
+                prompt = self.prompt_processor.build_prompt(processed_segments)
+            
+            print("\n=== 最终生成的提示词 ===")
+            print(prompt)
+            print("=======================\n")
+            
+            # 调用AI生成内容
             response = self.api_connector.call_api(prompt)
-            result = OutputParser.parse(response)
+            result = OutputParser.parse(response, parser_type="json")
+            
+            if not result:
+                print("AI生成内容解析失败")
+                return False
+                
+            # 应用存储映射
+            if use_template_storage and "output_storage" in template:
+                self._apply_storage_mapping(result, template["output_storage"], current_save, save_name)
+            
+            # 恢复原有的selected_choice
+            current_save['selected_choice'] = selected_choice
+            
+            # 更新存档
+            return save_data("character", save_name, current_save)
+            
         except Exception as e:
             print(f"生成故事失败: {str(e)}")
             return False
         
-        # 存储输出到角色属性
-        if use_template_storage and "output_storage" in template and CHARACTER_MODULE_AVAILABLE:
-            self._apply_storage_mapping(result, template["output_storage"])
-            return True
-        
-        return False
-    
-    def _apply_storage_mapping(self, result: Dict[str, Any], mapping: Dict[str, str]) -> None:
-        """应用存储映射，将输出存储到角色属性
+    def _apply_storage_mapping(self, result: Dict[str, Any], mapping: Dict[str, str], current_save: Dict[str, Any], save_name: str) -> None:
+        """应用存储映射
         
         Args:
-            result: AI输出结果
-            mapping: 存储映射 {输出字段: 属性名}
+            result: 生成的结果数据
+            mapping: 存储映射配置
+            current_save: 当前存档数据
+            save_name: 存档名称
         """
-        if not CHARACTER_MODULE_AVAILABLE:
-            return
+        for target_key, source_path in mapping.items():
+            # 从结果中获取值
+            value = result.get(target_key)
+            if value is None:
+                continue
             
-        for output_field, attr_name in mapping.items():
-            # 如果结果中存在映射的字段，则存储到对应属性
-            if output_field in result:
-                value = result[output_field]
-                
-                # 存储或更新属性
-                try:
-                    current_value = character_manager.get_attribute(attr_name)
-                    if current_value is not None:
-                        character_manager.set_attribute(attr_name, value)
-                        print(f"更新属性: {attr_name}")
-                    else:
-                        character_manager.create_attribute(attr_name, value)
-                        print(f"创建属性: {attr_name}")
-                except Exception as e:
-                    print(f"存储属性失败 {attr_name}: {str(e)}")
+            # 更新存档数据
+            current_save[target_key] = value
+        
+        # 保存更新后的存档数据
+        save_data("character", save_name, current_save)

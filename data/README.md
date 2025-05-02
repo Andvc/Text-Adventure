@@ -1,13 +1,24 @@
 # 游戏数据管理模块
 
-data模块提供游戏固定数据的读取和管理功能，用于存储和访问游戏的静态数据如物品信息、NPC数据、对话内容等。
+data模块提供统一的游戏数据管理功能，包括游戏数据文件的读取、保存和管理。所有数据（包括存档）都通过统一的API进行访问和管理。
 
 ## 主要功能
 
-- 数据文件管理：读取、保存各类游戏数据文件
-- 类型分离：按数据类型（文本、图像等）组织数据
-- 缓存机制：减少文件I/O操作，提高性能
-- 集中式访问：统一的API访问不同类型的数据
+- 数据文件管理
+  - 文件路径管理：统一处理不同类型数据文件的路径
+  - 数据读取：支持读取各类数据文件
+  - 数据保存：支持保存各类数据文件
+  - 缓存机制：减少文件I/O操作，提高性能
+  - 索引数据：通过索引文件快速访问特定类型的数据
+  - 嵌套数据：支持访问嵌套结构的数据
+
+- 数据操作
+  - 创建数据：创建新的数据文件或存档
+  - 读取数据：读取数据文件或存档内容
+  - 更新数据：更新数据文件或存档内容
+  - 删除数据：删除数据文件或存档
+  - 重命名数据：重命名数据文件或存档
+  - 列出数据：获取数据文件或存档列表
 
 ## 目录结构
 
@@ -16,13 +27,16 @@ data/
 ├── README.md          # 本文档
 ├── __init__.py        # 包初始化文件
 ├── data_manager.py    # 数据管理核心实现
-└── text/              # 文本类数据文件
-    ├── items.json     # 物品数据
-    ├── npcs.json      # NPC数据
-    ├── worlds/        # 预设世界观数据
-    │   ├── fantasy_realm.json   # 奇幻大陆世界观
-    │   └── sci_fi_future.json   # 星际纪元世界观
-    └── ...            # 其他文本数据
+├── text/              # 文本类数据文件
+│   ├── items.json     # 物品数据
+│   ├── npcs.json      # NPC数据
+│   ├── worlds/        # 预设世界观数据
+│   │   ├── fantasy_realm.json   # 奇幻大陆世界观
+│   │   └── sci_fi_future.json   # 星际纪元世界观
+│   └── ...            # 其他文本数据
+└── index/             # 数据索引目录
+    ├── items_index.json  # 物品索引
+    └── ...            # 其他索引文件
 ```
 
 ## 使用说明
@@ -46,109 +60,267 @@ data_manager.configure_data_system()
 data_manager.configure_data_system("/path/to/data")
 ```
 
-### 读取数据
+### 数据文件操作
 
-#### 读取整个数据文件
+#### 获取文件路径
 
 ```python
-read_data_file(data_type, file_name)
+get_save_path(save_type, save_name)
 ```
-读取指定的数据文件。
+获取保存文件的完整路径。
 
 **参数**:
-- `data_type`: 数据类型，如'text'、'images'等
-- `file_name`: 文件名（不含扩展名）
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
+
+**示例**:
+```python
+# 获取物品数据文件路径
+items_path = data_manager.get_save_path('text', 'items')
+# 获取存档文件路径
+save_path = data_manager.get_save_path('character', 'test_save')
+```
+
+#### 读取数据文件
+
+```python
+load_save(save_type, save_name)
+```
+读取指定的保存文件。
+
+**参数**:
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
 
 **示例**:
 ```python
 # 读取物品数据
-items_data = data_manager.read_data_file('text', 'items')
+items_data = data_manager.load_save('text', 'items')
 if items_data:
     for item_id, item_info in items_data.items():
         print(f"{item_id}: {item_info['name']}")
+
+# 读取存档数据
+save_data = data_manager.load_save('character', 'test_save')
+if save_data:
+    print(f"角色名称: {save_data['character']['name']}")
+```
+
+#### 保存数据文件
+
+```python
+save_data(save_type, save_name, data)
+```
+保存数据到文件。
+
+**参数**:
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
+- `data`: 要保存的数据
+
+**示例**:
+```python
+# 保存物品数据
+items_data = {
+    'sword': {
+        'name': '铁剑',
+        'attack': 5
+    }
+}
+data_manager.save_data('text', 'items', items_data)
+
+# 保存存档数据
+save_data = {
+    "character": {
+        "name": "李逍遥",
+        "level": "炼气期"
+    }
+}
+data_manager.save_data('character', 'test_save', save_data)
 ```
 
 #### 获取特定数据值
 
 ```python
-get_data_value(data_type, file_name, key, default=None)
+get_save_value(save_type, save_name, key, default=None)
 ```
-从数据文件中获取特定键的值。
+从保存的数据中获取特定键的值。
 
 **参数**:
-- `data_type`: 数据类型，如'text'、'images'等
-- `file_name`: 文件名（不含扩展名）
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
 - `key`: 数据键名
 - `default`: 默认值，如果数据不存在则返回此值
 
 **示例**:
 ```python
-# 获取特定物品的信息
-sword_data = data_manager.get_data_value('text', 'items', 'sword', {})
-print(f"剑的攻击力: {sword_data.get('attack', 0)}")
+# 获取物品数据
+sword_attack = data_manager.get_save_value('text', 'items', 'sword.attack', 0)
+print(f"剑的攻击力: {sword_attack}")
+
+# 获取存档数据
+character_name = data_manager.get_save_value('character', 'test_save', 'character.name')
+print(f"角色名称: {character_name}")
 ```
 
-### 保存数据
+#### 获取嵌套数据值
 
 ```python
-save_data_file(data_type, file_name, data)
+get_nested_save_value(save_type, save_name, path, default=None)
 ```
-保存数据到文件。
+从保存的数据中获取嵌套路径的值。
 
 **参数**:
-- `data_type`: 数据类型，如'text'、'images'等
-- `file_name`: 文件名（不含扩展名）
-- `data`: 要保存的数据
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
+- `path`: 数据路径，使用点号分隔，如 'layers.layer1.name'
+- `default`: 默认值，如果数据不存在则返回此值
 
 **示例**:
 ```python
-# 创建或更新物品数据
-items_data = {
-    'sword': {
-        'name': '铁剑',
-        'description': '普通的铁剑，攻击力不高。',
-        'attack': 5,
-        'value': 100
-    },
-    'shield': {
-        'name': '木盾',
-        'description': '简单的木盾，可以抵挡少量伤害。',
-        'defense': 3,
-        'value': 50
+# 获取嵌套的物品数据
+sword_description = data_manager.get_nested_save_value('text', 'items', 'sword.description')
+print(f"剑的描述: {sword_description}")
+
+# 获取嵌套的存档数据
+character_level = data_manager.get_nested_save_value('character', 'test_save', 'character.level')
+print(f"角色等级: {character_level}")
+```
+
+#### 获取索引数据
+
+```python
+get_indexed_save(index_file, detail_type)
+```
+根据索引文件获取指定类型的所有数据。
+
+**参数**:
+- `index_file`: 索引文件名（不含扩展名）
+- `detail_type`: 数据类型，如 'detail1', 'detail2'
+
+**示例**:
+```python
+# 获取物品索引数据
+items_index = data_manager.get_indexed_save('items_index', 'weapons')
+if items_index:
+    for item in items_index:
+        print(f"武器: {item['name']}, 攻击力: {item['attack']}")
+```
+
+### 数据管理工具
+
+#### 创建数据
+
+```python
+create_save(save_type, save_name, save_data=None)
+```
+创建新的保存。
+
+**参数**:
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
+- `save_data`: 保存数据，默认为空字典
+
+**示例**:
+```python
+# 创建存档
+save_data = {
+    "character": {
+        "name": "李逍遥",
+        "level": "炼气期"
     }
 }
-data_manager.save_data_file('text', 'items', items_data)
+data_manager.create_save("character", "test_save", save_data)
 ```
 
-### 其他工具函数
-
-#### 获取数据文件路径
+#### 更新数据
 
 ```python
-get_data_file_path(data_type, file_name)
+save_data(save_type, save_name, data)
 ```
-获取数据文件的完整路径。
+更新保存的数据。
 
 **参数**:
-- `data_type`: 数据类型，如'text'、'images'等
-- `file_name`: 文件名（不含扩展名）
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
+- `data`: 新的保存数据
 
 **示例**:
 ```python
-path = data_manager.get_data_file_path('text', 'items')
-print(f"物品数据文件路径: {path}")
+# 更新存档
+save_data = data_manager.load_save('character', 'test_save')
+save_data['character']['level'] = 2
+data_manager.save_data("character", "test_save", save_data)
+```
+
+#### 删除数据
+
+```python
+delete_save(save_type, save_name)
+```
+删除保存的数据。
+
+**参数**:
+- `save_type`: 保存类型，如'text'、'character'等
+- `save_name`: 保存名称
+
+**示例**:
+```python
+data_manager.delete_save("character", "test_save")
+```
+
+#### 重命名数据
+
+```python
+rename_save(save_type, old_name, new_name)
+```
+重命名保存的数据。
+
+**参数**:
+- `save_type`: 保存类型，如'text'、'character'等
+- `old_name`: 原保存名称
+- `new_name`: 新保存名称
+
+**示例**:
+```python
+data_manager.rename_save("character", "test_save", "new_save")
+```
+
+#### 列出数据
+
+```python
+list_saves(save_type=None)
+```
+获取所有保存的列表。
+
+**参数**:
+- `save_type`: 保存类型，如果指定则只列出该类型的保存
+
+**示例**:
+```python
+# 列出所有保存
+saves = data_manager.list_saves()
+print("所有保存:")
+for save in saves:
+    print(f"- {save}")
+
+# 只列出角色存档
+character_saves = data_manager.list_saves('character')
+print("角色存档:")
+for save in character_saves:
+    print(f"- {save}")
 ```
 
 #### 清除缓存
 
 ```python
-clear_cache(data_type=None, file_name=None)
+clear_cache(save_type=None, save_name=None)
 ```
 清除数据缓存。
 
 **参数**:
-- `data_type`: 数据类型，如果指定则只清除该类型的缓存
-- `file_name`: 文件名，如果指定则只清除该文件的缓存
+- `save_type`: 保存类型，如果指定则只清除该类型的缓存
+- `save_name`: 保存名称，如果指定则只清除该保存的缓存
 
 **示例**:
 ```python
@@ -156,60 +328,9 @@ clear_cache(data_type=None, file_name=None)
 data_manager.clear_cache()
 # 只清除文本类型的缓存
 data_manager.clear_cache('text')
-# 只清除物品数据缓存
+# 只清除特定文件的缓存
 data_manager.clear_cache('text', 'items')
 ```
-
-## 在character_manager中的使用
-
-character_manager模块提供了两个辅助函数，用于方便地访问游戏数据：
-
-```python
-get_data(data_type, file_name, key, default=None)
-```
-从游戏数据文件中读取特定键的值。
-
-**参数**:
-- `data_type`: 数据类型，如'text'、'images'等
-- `file_name`: 文件名（不含扩展名）
-- `key`: 数据键名
-- `default`: 默认值，如果数据不存在则返回此值
-
-```python
-read_data_file(data_type, file_name)
-```
-读取整个游戏数据文件。
-
-**参数**:
-- `data_type`: 数据类型，如'text'、'images'等
-- `file_name`: 文件名（不含扩展名）
-
-**示例**:
-```python
-from character import character_manager
-
-# 获取所有NPC数据
-npcs = character_manager.read_data_file('text', 'npcs')
-
-# 获取特定NPC的数据
-merchant = character_manager.get_data('text', 'npcs', 'merchant')
-```
-
-## 与存档系统的区别
-
-数据管理系统与存档系统的主要区别：
-
-1. **用途不同**：
-   - 数据系统：存储游戏固定数据（物品、NPC、对话等）
-   - 存档系统：存储玩家进度和角色状态
-
-2. **更新频率不同**：
-   - 数据系统：通常只在游戏开发或内容更新时修改
-   - 存档系统：随着玩家游戏进程不断变化
-
-3. **存储位置不同**：
-   - 数据系统：位于游戏安装目录中，所有玩家共享相同数据
-   - 存档系统：通常位于用户目录，针对每个玩家单独存储
 
 ## 未来计划
 
@@ -219,4 +340,6 @@ merchant = character_manager.get_data('text', 'npcs', 'merchant')
 2. **版本控制**：支持数据文件的版本记录和兼容性处理
 3. **数据编辑工具**：提供GUI工具，方便游戏开发者编辑数据
 4. **多语言支持**：支持国际化，按语言加载不同的数据文件
-5. **压缩存储**：支持数据压缩，减少磁盘占用和加载时间 
+5. **压缩存储**：支持数据压缩，减少磁盘占用和加载时间
+6. **数据备份**：自动备份重要数据文件
+7. **数据同步**：支持多设备间的数据同步 

@@ -146,9 +146,10 @@ update_save_data(save_data)
 
 **示例**:
 ```python
-data = save_manager.get_current_save_data()
-data["attributes"]["新属性"] = "新值"
-save_manager.update_save_data(data)
+# 更新存档数据
+save_data = load_save("勇者的旅程")
+save_data['character']['level'] = 2
+save_data("勇者的旅程", save_data, save_type="character")
 ```
 
 #### 读取指定存档数据

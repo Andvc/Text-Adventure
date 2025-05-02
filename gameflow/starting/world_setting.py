@@ -13,7 +13,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from data.data_manager import load_text_data, save_text_data, list_text_data, get_data_path
 
 # 导入角色系统
-from character.character_manager import create_attribute, set_attribute, get_attribute
+from data.data_manager import create_attribute, set_attribute, get_attribute
 
 # 导入故事线系统
 from storyline.storyline_manager import StorylineManager

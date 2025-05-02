@@ -20,53 +20,33 @@ storyline/
 
 ## 核心概念
 
-在开始之前，让我们了解Storyline模块的几个核心概念：
+### 1. 模板（Template）
+- 定义了故事的基本结构和输出格式
+- 包含背景信息、内容指令和输出格式
+- 支持自定义提示词模板
 
-1. **模板（Template）**：定义了故事的基本结构和输出格式。
+### 2. 提示片段（Prompt Segments）
+- `(...)`: 背景信息，如`(主角名称：{character.name})`
+- `<...>`: 内容指令，如`<请生成故事>`
+- `[key="*"]`: 输出格式声明，如`[story="*"]`
 
-2. **提示片段（Prompt Segments）**：构成模板的文本片段，包括背景信息、内容指令和输出格式。
+### 3. 存储映射（Storage Mapping）
+- 定义如何将生成的内容存储到存档数据中
+- 支持嵌套数据结构的映射
+- 自动处理数组类型的存储
 
-3. **角色属性（Character Attributes）**：由character模块管理的角色数据，可直接在模板中引用。
-
-4. **存储映射（Storage Mapping）**：定义如何将生成的内容存储到角色属性中。
-
-5. **故事记录（Story History）**：生成的故事内容和选择选项的记录。
+### 4. 提示词处理（Prompt Processing）
+- 智能解析和分类提示片段
+- 支持内容和格式的配对
+- 提供灵活的模板替换机制
 
 ## 主要功能
 
 ### 1. 模板管理
-
-- 提供标准化的故事模板格式
-- 支持创建、读取、更新和删除模板
-- 模板分类与组织管理
-
-### 2. 故事生成
-
-- 基于模板生成故事内容
-- 与AI模块集成，进行动态内容生成
-- 直接使用和更新角色属性
-
-### 3. 存储映射
-
-- 自动将生成的内容映射到角色属性
-- 通过模板定义输出字段与属性的映射关系
-- 直接使用角色模块的API进行属性管理
-
-## 核心API（新版）
-
-### StorylineManager 类
-
-#### 初始化
-
 ```python
-manager = StorylineManager(templates_dir=None)
-```
+# 初始化管理器
+manager = StorylineManager()
 
-- `templates_dir`: 模板目录路径（可选），默认使用模块内置templates目录
-
-#### 模板管理
-
-```python
 # 列出所有模板
 templates = manager.list_templates()
 
@@ -80,176 +60,179 @@ manager.save_template(template_data)
 manager.delete_template("old_template")
 ```
 
-#### 故事生成
-
+### 2. 故事生成
 ```python
-# 生成故事（重要更新：现在返回布尔值表示成功与否）
-success = manager.generate_story("simple_loop")
+# 生成故事
+success = manager.generate_story("save_name", "template_id")
 
 # 生成时不应用存储映射
-success = manager.generate_story("simple_loop", use_template_storage=False)
+success = manager.generate_story("save_name", "template_id", use_template_storage=False)
 ```
 
-**重要变更**：`generate_story` 函数现在返回一个布尔值，表示故事生成是否成功，而不是之前的 `(main_content, choices, story_id)` 元组。故事内容和选项会直接保存到角色属性中，可以通过Character模块的API获取。
-
-#### 故事记录管理
-
+### 3. 存档数据访问
 ```python
-# 获取故事记录
-story_data = manager.get_story(story_id)
+from data.data_manager import (
+    get_save_value,
+    get_nested_save_value,
+    get_indexed_save,
+    load_save,
+    save_data
+)
 
-# 清除历史记录
-manager.clear_history()
+# 获取存档数据
+save_data = load_save("save_name", "character")
 
-# 保存历史记录到文件
-manager.save_history_to_file(filepath)
+# 获取特定值
+value = get_save_value("key", save_data)
 
-# 从文件加载历史记录
-manager.load_history_from_file(filepath)
-```
+# 获取嵌套值
+nested_value = get_nested_save_value("parent.child", save_data)
 
-## 选择处理
-
-**重要变更**：`make_choice` 函数已被移除。现在应该直接使用Character模块的`set_attribute`函数来更新选择：
-
-```python
-# 直接更新"事件选择"属性
-from character.character_manager import set_attribute
-set_attribute("事件选择", choice_text)
+# 获取数组元素
+array_item = get_indexed_save("array", 0, save_data)
 ```
 
 ## 模板格式
 
-模板采用JSON格式，基本结构如下：
-
 ```json
 {
   "template_id": "simple_loop",
-  "name": "简单循环测试模板",
-  "description": "单模板循环",
-  "version": "1.0",
-  "author": "开发者",
+  "name": "魔法世界冒险模板",
+  "description": "适用于魔法世界背景的循环故事生成",
+  "version": "1.1",
+  "author": "Andvc",
   "created_at": "2025-04-11",
-  "tags": ["测试"],
+  "tags": ["魔法", "冒险", "测试"],
   "prompt_segments": [
-    "(主角名称：{姓名})",
-    "(背景世界:{世界})",
-    "<请根据当前事件和事件的选择，生成下一段故事>",
+    "## 角色信息",
+    "(主角名称：{character.name})",
+    "(主角身份：{character.level})",
+    "(所处世界：{world})",
+    "",
+    "## 故事背景",
+    "(故事概要：{summary})",
+    "",
+    "## 当前情况",
+    "(当前事件：{story})",
+    "(玩家选择了：{selected_choice})",
+    "",
+    "## 生成要求",
+    "<基于玩家的选择 '{selected_choice}'，描述接下来发生的新事件...>",
     "[story=\"*\"]",
-    "<请生成三个选择>",
-    "[choice1=\"*\",choice2=\"*\",choice3=\"*\"]"
+    "",
+    "<根据新发生的事件，生成三个不同的选择...>",
+    "[choice1=\"*\",choice2=\"*\",choice3=\"*\"]",
+    "",
+    "<根据新的事件发展，更新故事梗概...>",
+    "[summary=\"*\"]"
   ],
   "output_format": {
     "story": "string",
+    "summary": "string",
     "choice1": "string",
     "choice2": "string",
     "choice3": "string"
   },
   "output_storage": {
-    "story": "当前事件",
-    "choice1": "选项1",
-    "choice2": "选项2",
-    "choice3": "选项3"
+    "story": "story",
+    "summary": "summary",
+    "choice1": "choice1",
+    "choice2": "choice2",
+    "choice3": "choice3"
   },
-  "prompt_template": "你是一个高级故事生成AI，请根据以下提示创建故事内容。\n\n## 背景信息\n{background}\n\n## 内容要求\n{content}\n\n## 输出格式\n请严格按照以下JSON格式回复：\n{format}"
+  "prompt_template": "你是一个专业的魔法世界故事生成AI...\n\n{background}\n\n请严格按照以下JSON格式回复：\n{format}"
 }
 ```
 
-### 关键部分解释
+### 模板关键部分
 
-1. **prompt_segments**: 提示片段列表，用于构建AI提示词
-   - `(...)`: 背景信息，如`(主角名称：{姓名})`
-   - `<...>`: 内容指令，如`<请生成故事>`
-   - `[key="*"]`: 输出格式声明，如`[story="*"]`
+1. **prompt_segments**: 提示片段列表
+   - 支持多级标题和分组
+   - 可以引用存档数据中的任何字段
+   - 支持内容和格式的配对
 
-2. **output_format**: 定义期望的输出字段和类型
+2. **output_format**: 定义输出字段和类型
+   - 支持字符串、数字、布尔等基本类型
+   - 支持嵌套数据结构
 
-3. **output_storage**: 定义如何将输出映射到角色属性
-   - 键: AI输出中的字段名
-   - 值: 角色属性名
-   - 特殊字段`content`指完整的故事内容
+3. **output_storage**: 定义存储映射
+   - 支持直接映射到存档字段
+   - 支持嵌套路径映射
+   - 支持数组索引映射
 
-4. **prompt_template**: 自定义提示词模板（可选）
+4. **prompt_template**: 自定义提示词模板
+   - 支持背景信息替换 `{background}`
+   - 支持内容指令替换 `{content}`
+   - 支持输出格式替换 `{format}`
+   - 支持输入信息替换 `{input_info}`
+   - 支持JSON格式替换 `{json_format}`
 
-## 使用模板编辑工具
+## 使用示例
 
-### 图形界面编辑器
-
-启动方式：
-
-```bash
-# 通过模块启动
-python -m storyline
-
-# 或直接启动
-python -m storyline.tools.template_editor
-```
-
-主要功能：
-- 创建和编辑模板
-- 管理提示片段
-- 配置输出格式和存储映射
-- 浏览角色属性
-- 测试模板和预览JSON结构
-
-### 命令行工具
-
-```bash
-# 列出所有模板
-python -m storyline.tools.template_builder list
-
-# 显示特定模板
-python -m storyline.tools.template_builder show <template_id>
-
-# 创建新模板
-python -m storyline.tools.template_builder create
-
-# 删除模板
-python -m storyline.tools.template_builder delete <template_id>
-```
-
-## 完整使用示例
-
+### 1. 创建新模板
 ```python
-from storyline.storyline_manager import StorylineManager
-from character.character_manager import get_attribute, set_attribute, create_attribute
+template = {
+    "template_id": "new_template",
+    "name": "新模板",
+    "description": "测试模板",
+    "prompt_segments": [
+        "(背景信息：{background})",
+        "<生成内容>",
+        "[content=\"*\"]"
+    ],
+    "output_format": {
+        "content": "string"
+    },
+    "output_storage": {
+        "content": "story"
+    }
+}
 
-# 初始化角色属性
-create_attribute("姓名", "李逍遥")
-create_attribute("世界", "奇幻大陆")
-create_attribute("境界", "炼气期")
-create_attribute("故事梗概", "少年李逍遥无意间获得一本古老的功法，开始了修仙之路。")
-create_attribute("当前事件", "李逍遥来到了一座神秘的洞穴前，传说里面藏有珍贵的宝物。")
-create_attribute("事件选择", "探索洞穴")
-
-# 初始化故事线管理器
-manager = StorylineManager()
-
-# 生成故事（自动保存到角色属性）
-success = manager.generate_story("simple_loop")
-if not success:
-    print("故事生成失败")
-
-# 从角色属性中获取生成的内容
-story = get_attribute("当前事件")
-option1 = get_attribute("选项1")
-option2 = get_attribute("选项2")
-option3 = get_attribute("选项3")
-
-print(f"故事内容: {story}")
-print(f"选项1: {option1}")
-print(f"选项2: {option2}")
-print(f"选项3: {option3}")
-
-# 做出选择（直接更新角色属性）
-set_attribute("事件选择", option1)
-
-# 生成下一段故事
-success = manager.generate_story("simple_loop")
+manager.save_template(template)
 ```
 
-### 调试提示
+### 2. 生成故事
+```python
+# 加载存档
+save_data = load_save("player1", "character")
 
-1. 启用详细日志输出查看内部处理流程
-2. 测试时使用`test_adventure_template.py`等示例脚本
-3. 检查生成的故事历史记录，了解属性变化情况 
+# 生成新故事
+success = manager.generate_story("player1", "simple_loop")
+
+if success:
+    # 获取生成的内容
+    story = get_save_value("story", save_data)
+    choices = [
+        get_save_value("choice1", save_data),
+        get_save_value("choice2", save_data),
+        get_save_value("choice3", save_data)
+    ]
+```
+
+## 最佳实践
+
+1. **模板设计**
+   - 使用清晰的标题和分组
+   - 提供详细的背景信息
+   - 明确指定输出格式
+   - 合理设计存储映射
+
+2. **提示词编写**
+   - 使用具体的指令和要求
+   - 提供足够的上下文信息
+   - 明确指定输出格式
+   - 添加必要的约束条件
+
+3. **存档管理**
+   - 使用有意义的字段名
+   - 保持数据结构的一致性
+   - 合理组织嵌套数据
+   - 及时保存更新
+
+## 注意事项
+
+1. 模板ID必须是唯一的
+2. 所有占位符必须存在于存档数据中
+3. 存储映射的字段必须与输出格式匹配
+4. 生成失败时会返回False，需要检查错误信息
+5. 建议在生成前备份存档数据 

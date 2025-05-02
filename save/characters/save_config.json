@@ -1,0 +1,18 @@
+{
+    "character": {
+        "name": "",
+        "level": ""
+    },
+    "world": "",
+    "story": {
+        "summary": "",
+        "current_event": "",
+        "selected_choice": "",
+        "choices": [
+            "",
+            "",
+            ""
+        ]
+    },
+    "metadata": {}
+}

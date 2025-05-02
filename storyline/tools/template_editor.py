@@ -2,7 +2,7 @@
 故事模板编辑工具
 
 此工具提供图形界面编辑故事模板，适配StorylineManager，
-直接使用角色属性，无需内外变量转换。
+直接使用数据模块API，实现模板管理功能。
 """
 
 import os
@@ -10,23 +10,25 @@ import sys
 import json
 import time
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext, simpledialog
+from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple, Callable
+from typing import Dict, Any, Optional, List, Tuple
+import logging
+import re
+
+# 导入数据模块API
+from data.data_manager import (
+    load_save,
+    save_data,
+    list_saves,
+    get_save_value,
+    get_nested_save_value
+)
 
 # 导入storyline模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from storyline import TEMPLATES_PATH
 from storyline.storyline_manager import StorylineManager
-
-# 导入character模块
-try:
-    from character.character_manager import get_all_attributes, get_attribute, set_attribute, create_attribute
-    from character.character_manager import configure_save_system, get_save_location, create_save, list_saves, load_save
-    CHARACTER_MODULE_AVAILABLE = True
-except ImportError:
-    CHARACTER_MODULE_AVAILABLE = False
-    print("警告：未能导入角色模块，角色属性功能将不可用")
 
 # 导入AI模块
 try:
@@ -35,6 +37,9 @@ try:
 except ImportError:
     AI_MODULE_AVAILABLE = False
     print("警告：未能导入AI模块，提示词处理功能将不可用")
+
+# 定义全局变量
+DATA_MODULE_AVAILABLE = True  # 数据模块已集成
 
 class TemplateEditor:
     """模板编辑器，提供图形界面编辑模板"""
@@ -60,27 +65,14 @@ class TemplateEditor:
         # 当前编辑的模板
         self.current_template: Optional[Dict[str, Any]] = None
         
-        # 如果有角色模块，初始化提示词处理器
+        # 如果有AI模块，初始化提示词处理器
         if AI_MODULE_AVAILABLE:
             self.prompt_processor = PromptProcessor()
             
         # 初始化存档管理相关变量
-        self.saves_dir = None
-        if CHARACTER_MODULE_AVAILABLE:
-            # 使用save_manager中的方法获取当前存档位置
-            self.save_file = get_save_location()
-            
-            # 确保使用正确的characters目录
-            # save_file路径示例: /path/to/save/characters/default.json
-            save_path = Path(self.save_file)
-            if "characters" in str(save_path):
-                self.saves_dir = str(save_path.parent)  # 使用/path/to/save/characters/
-            else:
-                # 向上一级的save目录，再追加characters目录
-                self.saves_dir = str(Path(self.save_file).parent / "characters")
-                
-            # 确保目录存在
-            os.makedirs(self.saves_dir, exist_ok=True)
+        self.save_type = "character"
+        # 确保存档目录存在
+        os.makedirs(os.path.join(os.path.dirname(os.path.dirname(Path(__file__).parent)), "save", "characters"), exist_ok=True)
     
     def run(self) -> None:
         """启动模板编辑器图形界面"""
@@ -175,8 +167,6 @@ class TemplateEditor:
         # 绑定事件
         self.template_tree.bind("<<TreeviewSelect>>", self._on_template_select)
         self.template_tree.bind("<Double-1>", lambda e: self._edit_selected_template())
-        
-        # 移除右键菜单绑定
     
     def _setup_editor(self, parent: ttk.Frame) -> None:
         """设置编辑区域
@@ -203,11 +193,11 @@ class TemplateEditor:
         self.notebook.add(output_tab, text="输出和存储")
         self._setup_output_tab(output_tab)
         
-        # 角色属性和存档管理选项卡(合并后)
-        if CHARACTER_MODULE_AVAILABLE:
-            character_tab = ttk.Frame(self.notebook)
-            self.notebook.add(character_tab, text="角色属性与存档")
-            self._setup_character_tab(character_tab)
+        # 存档管理选项卡
+        if DATA_MODULE_AVAILABLE:
+            save_tab = ttk.Frame(self.notebook)
+            self.notebook.add(save_tab, text="存档数据")
+            self._setup_save_tab(save_tab)
             
         # 提示词处理选项卡
         if AI_MODULE_AVAILABLE:
@@ -252,32 +242,31 @@ class TemplateEditor:
         row = 0
         
         for field_id, label_text, default_value in fields:
-            # 创建标签
+            # 标签
             label = ttk.Label(self.template_info_frame, text=label_text)
-            label.grid(row=row, column=0, sticky=tk.W, pady=5)
+            label.grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
             
-            # 创建输入框
+            # 输入框
             if field_id == "description":
-                entry = scrolledtext.ScrolledText(self.template_info_frame, height=4, width=40)
-                entry.insert(tk.END, default_value)
-                entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
+                entry = tk.Text(self.template_info_frame, height=4, width=40)
+                entry.insert("1.0", default_value)
             else:
                 entry = ttk.Entry(self.template_info_frame, width=40)
                 entry.insert(0, default_value)
-                entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
             
+            entry.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=5)
             self.info_entries[field_id] = entry
+            
             row += 1
         
         # 标签输入
-        label = ttk.Label(self.template_info_frame, text="标签:")
-        label.grid(row=row, column=0, sticky=tk.W, pady=5)
+        label = ttk.Label(self.template_info_frame, text="标签(逗号分隔):")
+        label.grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
         
         self.tags_entry = ttk.Entry(self.template_info_frame, width=40)
-        self.tags_entry.grid(row=row, column=1, sticky=tk.EW, pady=5)
-        ttk.Label(self.template_info_frame, text="多个标签请用逗号分隔").grid(row=row, column=2, sticky=tk.W, padx=5)
+        self.tags_entry.grid(row=row, column=1, sticky=tk.EW, padx=5, pady=5)
         
-        # 配置列宽
+        # 设置列权重，使输入框可以随窗口调整
         self.template_info_frame.columnconfigure(1, weight=1)
         
         # 添加使用提示
@@ -301,1603 +290,672 @@ class TemplateEditor:
         Args:
             parent: 父容器
         """
-        self.segments_frame = ttk.Frame(parent)
-        self.segments_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        # 创建分隔面板：左侧列表，右侧编辑
+        paned = ttk.PanedWindow(parent, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 左侧 - 片段列表
-        left_frame = ttk.Frame(self.segments_frame)
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        # 左侧列表
+        left_frame = ttk.Frame(paned, width=200)
+        paned.add(left_frame, weight=1)
         
-        ttk.Label(left_frame, text="提示片段列表:").pack(anchor=tk.W, pady=(0, 5))
+        # 右侧编辑
+        right_frame = ttk.Frame(paned)
+        paned.add(right_frame, weight=2)
         
+        # 列表区域
         list_frame = ttk.Frame(left_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.segments_list = tk.Listbox(list_frame, height=15)
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.segments_list.yview)
-        self.segments_list.configure(yscrollcommand=scrollbar.set)
+        # 片段列表
+        columns = ("index", "segment")
+        self.segments_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=20)
         
-        self.segments_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.segments_tree.heading("index", text="#")
+        self.segments_tree.heading("segment", text="片段内容")
+        
+        self.segments_tree.column("index", width=30, anchor=tk.CENTER)
+        self.segments_tree.column("segment", width=170)
+        
+        # 添加滚动条
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.segments_tree.yview)
+        self.segments_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.segments_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 绑定选择事件
-        self.segments_list.bind("<<ListboxSelect>>", self._on_segment_select)
-        
-        # 按钮
+        # 按钮区域
         buttons_frame = ttk.Frame(left_frame)
-        buttons_frame.pack(fill=tk.X, pady=5)
+        buttons_frame.pack(fill=tk.X, pady=(5, 0))
         
-        ttk.Button(buttons_frame, text="上移", command=lambda: self._move_segment(-1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(buttons_frame, text="下移", command=lambda: self._move_segment(1)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(buttons_frame, text="删除", command=self._delete_segment).pack(side=tk.LEFT, padx=2)
+        # 使用Grid布局按钮
+        buttons_frame.columnconfigure(0, weight=1)
+        buttons_frame.columnconfigure(1, weight=1)
         
-        # 右侧 - 编辑区域
-        right_frame = ttk.Frame(self.segments_frame)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        # 上下移动按钮
+        up_btn = ttk.Button(buttons_frame, text="上移", width=8, command=lambda: self._move_segment(-1))
+        up_btn.grid(row=0, column=0, sticky=tk.EW, padx=3, pady=2)
         
-        ttk.Label(right_frame, text="编辑片段:").pack(anchor=tk.W, pady=(0, 5))
+        down_btn = ttk.Button(buttons_frame, text="下移", width=8, command=lambda: self._move_segment(1))
+        down_btn.grid(row=0, column=1, sticky=tk.EW, padx=3, pady=2)
+        
+        # 添加和删除按钮
+        add_btn = ttk.Button(buttons_frame, text="添加", width=8, command=self._add_update_segment)
+        add_btn.grid(row=1, column=0, sticky=tk.EW, padx=3, pady=2)
+        
+        delete_btn = ttk.Button(buttons_frame, text="删除", width=8, command=self._delete_segment)
+        delete_btn.grid(row=1, column=1, sticky=tk.EW, padx=3, pady=2)
+        
+        # 右侧编辑区域
+        edit_frame = ttk.LabelFrame(right_frame, text="编辑片段")
+        edit_frame.pack(fill=tk.BOTH, expand=True, padx=5)
         
         # 片段类型选择
-        type_frame = ttk.Frame(right_frame)
-        type_frame.pack(fill=tk.X, pady=5)
+        type_frame = ttk.Frame(edit_frame)
+        type_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        ttk.Label(type_frame, text="片段类型:").pack(side=tk.LEFT, padx=(0, 5))
+        type_label = ttk.Label(type_frame, text="片段类型:")
+        type_label.pack(side=tk.LEFT, padx=5)
         
-        self.segment_type = tk.StringVar(value="background")
+        self.segment_type_var = tk.StringVar(value="info")
         
-        ttk.Radiobutton(type_frame, text="背景信息", variable=self.segment_type, 
-                        value="background").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(type_frame, text="内容指令", variable=self.segment_type, 
-                        value="content").pack(side=tk.LEFT, padx=5)
-        ttk.Radiobutton(type_frame, text="输出格式", variable=self.segment_type, 
-                        value="format").pack(side=tk.LEFT, padx=5)
+        info_radio = ttk.Radiobutton(type_frame, text="背景信息 ()", 
+                                    variable=self.segment_type_var, value="info")
+        info_radio.pack(side=tk.LEFT, padx=10)
+        
+        content_radio = ttk.Radiobutton(type_frame, text="内容指令 <>", 
+                                       variable=self.segment_type_var, value="content")
+        content_radio.pack(side=tk.LEFT, padx=10)
+        
+        format_radio = ttk.Radiobutton(type_frame, text="输出格式 []", 
+                                      variable=self.segment_type_var, value="format")
+        format_radio.pack(side=tk.LEFT, padx=10)
         
         # 片段内容编辑
-        ttk.Label(right_frame, text="片段内容:").pack(anchor=tk.W, pady=(5, 0))
+        content_frame = ttk.Frame(edit_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        self.segment_text = scrolledtext.ScrolledText(right_frame, height=10)
-        self.segment_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        self.segment_text = tk.Text(content_frame, height=10, width=50, wrap=tk.WORD)
+        self.segment_text.pack(fill=tk.BOTH, expand=True, side=tk.LEFT)
         
-        # 添加片段按钮
-        ttk.Button(right_frame, text="添加/更新片段", command=self._add_update_segment).pack(anchor=tk.E, pady=5)
+        # 滚动条
+        text_scrollbar = ttk.Scrollbar(content_frame, orient=tk.VERTICAL, command=self.segment_text.yview)
+        self.segment_text.configure(yscrollcommand=text_scrollbar.set)
+        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 帮助文本
-        help_frame = ttk.LabelFrame(right_frame, text="模板语法帮助")
-        help_frame.pack(fill=tk.X, pady=10)
+        # 提示区域
+        hint_label = ttk.Label(edit_frame, text="提示: 使用 {变量名} 引用存档数据，如 {character.name}", 
+                              font=("Arial", 9, "italic"))
+        hint_label.pack(anchor=tk.W, padx=10, pady=(0, 10))
         
-        help_text = (
-            "1. 背景信息: 使用 (内容) 格式，例如 (世界设定: {world_setting})\n"
-            "2. 内容指令: 使用 <内容> 格式，例如 <描述一段在{location}的冒险>\n"
-            "3. 输出格式: 使用 [key=\"*\"] 格式，例如 [story=\"*\"]\n"
-            "4. 角色属性引用: 使用 {属性名} 格式，例如 {name} 或 {力量}\n"
-            "   - 所有角色属性都可以直接引用，无需预定义输入变量"
-        )
+        # 应用按钮
+        apply_btn = ttk.Button(edit_frame, text="应用", command=self._add_update_segment)
+        apply_btn.pack(anchor=tk.E, padx=10, pady=10)
         
-        help_label = ttk.Label(help_frame, text=help_text, justify=tk.LEFT, wraplength=400)
-        help_label.pack(padx=10, pady=10, anchor=tk.W)
+        # 绑定事件
+        self.segments_tree.bind("<<TreeviewSelect>>", self._on_segment_select)
     
     def _on_segment_select(self, event) -> None:
-        """处理片段选择事件
-        
-        Args:
-            event: 事件对象
-        """
-        selection = self.segments_list.curselection()
+        """当选择片段时触发"""
+        selection = self.segments_tree.selection()
         if not selection:
             return
         
         # 获取选择的片段
-        index = selection[0]
-        segment = self.segments_list.get(index)
+        item_id = selection[0]
+        item_data = self.segments_tree.item(item_id)
+        segment_idx = int(item_data["values"][0]) - 1  # 索引从0开始
         
-        # 更新编辑区域
-        self.segment_text.delete("1.0", tk.END)
-        self.segment_text.insert(tk.END, segment)
-        
-        # 设置片段类型
-        if segment.startswith("(") and segment.endswith(")"):
-            self.segment_type.set("background")
-        elif segment.startswith("<") and segment.endswith(">"):
-            self.segment_type.set("content")
-        elif segment.startswith("[") and segment.endswith("]"):
-            self.segment_type.set("format")
+        # 获取原始片段文本
+        if self.current_template and "prompt_segments" in self.current_template:
+            segments = self.current_template["prompt_segments"]
+            if 0 <= segment_idx < len(segments):
+                segment = segments[segment_idx]
+                
+                # 设置类型
+                segment_type = "info"
+                content = segment
+                
+                if segment.startswith("(") and segment.endswith(")"):
+                    segment_type = "info"
+                    content = segment[1:-1]
+                elif segment.startswith("<") and segment.endswith(">"):
+                    segment_type = "content"
+                    content = segment[1:-1]
+                elif segment.startswith("[") and segment.endswith("]"):
+                    segment_type = "format"
+                    content = segment[1:-1]
+                
+                # 更新UI
+                self.segment_type_var.set(segment_type)
+                self.segment_text.delete("1.0", tk.END)
+                self.segment_text.insert("1.0", content)
     
     def _add_update_segment(self) -> None:
-        """添加或更新提示片段"""
-        # 获取片段内容
-        segment_text = self.segment_text.get("1.0", tk.END).strip()
-        if not segment_text:
-            messagebox.showwarning("输入错误", "片段内容不能为空")
+        """添加或更新片段"""
+        if not self.current_template:
+            messagebox.showwarning("警告", "没有选择模板")
             return
         
-        # 根据类型添加包装符号
-        segment_type = self.segment_type.get()
+        # 获取片段内容
+        content = self.segment_text.get("1.0", tk.END).strip()
+        if not content:
+            messagebox.showwarning("警告", "片段内容不能为空")
+            return
         
-        if segment_type == "background":
-            if not segment_text.startswith("("):
-                segment_text = "(" + segment_text
-            if not segment_text.endswith(")"):
-                segment_text = segment_text + ")"
+        # 根据类型添加包围符号
+        segment_type = self.segment_type_var.get()
+        if segment_type == "info":
+            segment = f"({content})"
         elif segment_type == "content":
-            if not segment_text.startswith("<"):
-                segment_text = "<" + segment_text
-            if not segment_text.endswith(">"):
-                segment_text = segment_text + ">"
+            segment = f"<{content}>"
         elif segment_type == "format":
-            if not segment_text.startswith("["):
-                segment_text = "[" + segment_text
-            if not segment_text.endswith("]"):
-                segment_text = segment_text + "]"
+            segment = f"[{content}]"
+        else:
+            segment = content
         
-        # 检查是新增还是更新
-        selection = self.segments_list.curselection()
+        # 检查是更新还是添加
+        selection = self.segments_tree.selection()
         if selection:
             # 更新现有片段
-            index = selection[0]
-            self.segments_list.delete(index)
-            self.segments_list.insert(index, segment_text)
-            self.segments_list.selection_set(index)
+            item_id = selection[0]
+            item_data = self.segments_tree.item(item_id)
+            segment_idx = int(item_data["values"][0]) - 1
+            
+            if "prompt_segments" not in self.current_template:
+                self.current_template["prompt_segments"] = []
+            
+            if 0 <= segment_idx < len(self.current_template["prompt_segments"]):
+                self.current_template["prompt_segments"][segment_idx] = segment
         else:
             # 添加新片段
-            self.segments_list.insert(tk.END, segment_text)
-            self.segments_list.selection_set(tk.END)
+            if "prompt_segments" not in self.current_template:
+                self.current_template["prompt_segments"] = []
+            
+            self.current_template["prompt_segments"].append(segment)
         
-        # 清空编辑框
+        # 刷新显示
+        self._refresh_segments_tree()
+        
+        # 清空编辑区
         self.segment_text.delete("1.0", tk.END)
     
     def _move_segment(self, direction: int) -> None:
-        """移动提示片段
+        """移动片段
         
         Args:
-            direction: 移动方向，-1表示上移，1表示下移
+            direction: 移动方向，-1上移，1下移
         """
-        selection = self.segments_list.curselection()
+        if not self.current_template or "prompt_segments" not in self.current_template:
+            return
+        
+        selection = self.segments_tree.selection()
         if not selection:
             return
         
-        index = selection[0]
-        new_index = index + direction
+        # 获取选择的片段索引
+        item_id = selection[0]
+        item_data = self.segments_tree.item(item_id)
+        segment_idx = int(item_data["values"][0]) - 1
         
-        # 检查边界
-        if new_index < 0 or new_index >= self.segments_list.size():
-            return
+        # 计算新位置
+        new_idx = segment_idx + direction
         
-        # 获取片段
-        segment = self.segments_list.get(index)
-        
-        # 删除原片段并插入到新位置
-        self.segments_list.delete(index)
-        self.segments_list.insert(new_index, segment)
-        
-        # 选中新位置
-        self.segments_list.selection_clear(0, tk.END)
-        self.segments_list.selection_set(new_index)
+        # 确保在有效范围内
+        if 0 <= new_idx < len(self.current_template["prompt_segments"]):
+            # 交换位置
+            segments = self.current_template["prompt_segments"]
+            segments[segment_idx], segments[new_idx] = segments[new_idx], segments[segment_idx]
+            
+            # 刷新显示
+            self._refresh_segments_tree()
+            
+            # 选择移动后的项
+            for child in self.segments_tree.get_children():
+                values = self.segments_tree.item(child)["values"]
+                if values[0] == new_idx + 1:  # 显示的索引从1开始
+                    self.segments_tree.selection_set(child)
+                    self.segments_tree.focus(child)
+                    self.segments_tree.see(child)
+                    break
     
     def _delete_segment(self) -> None:
-        """删除选中的提示片段"""
-        selection = self.segments_list.curselection()
+        """删除选择的片段"""
+        if not self.current_template or "prompt_segments" not in self.current_template:
+            return
+        
+        selection = self.segments_tree.selection()
         if not selection:
             return
         
-        index = selection[0]
-        self.segments_list.delete(index)
-
+        # 获取选择的片段索引
+        item_id = selection[0]
+        item_data = self.segments_tree.item(item_id)
+        segment_idx = int(item_data["values"][0]) - 1
+        
+        # 删除片段
+        if 0 <= segment_idx < len(self.current_template["prompt_segments"]):
+            del self.current_template["prompt_segments"][segment_idx]
+            
+            # 刷新显示
+            self._refresh_segments_tree()
+    
     def _setup_output_tab(self, parent: ttk.Frame) -> None:
-        """设置输出和存储选项卡 - 将输出定义和存储映射整合到一个选项卡
+        """设置输出和存储选项卡
         
         Args:
             parent: 父容器
         """
-        output_frame = ttk.Frame(parent)
-        output_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        # 创建分隔面板：上面输出格式，下面存储映射
+        paned = ttk.PanedWindow(parent, orient=tk.VERTICAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 解释文本
-        explanation = (
-            "在此选项卡中定义模板输出字段的格式以及如何将它们存储到角色属性中。\n"
-            "系统会自动将输出字段存储到指定的角色属性，无需额外代码。"
-        )
-        ttk.Label(output_frame, text=explanation, wraplength=800).pack(anchor=tk.W, pady=(0, 10))
+        # 输出格式区域
+        output_frame = ttk.LabelFrame(paned, text="输出字段格式")
+        paned.add(output_frame, weight=1)
         
-        # 表格区域 - 输出定义和存储映射
-        table_frame = ttk.Frame(output_frame)
-        table_frame.pack(fill=tk.BOTH, expand=True)
+        # 存储映射区域
+        storage_frame = ttk.LabelFrame(paned, text="输出存储映射")
+        paned.add(storage_frame, weight=1)
         
-        # 表头
-        headers_frame = ttk.Frame(table_frame)
-        headers_frame.pack(fill=tk.X)
+        # 设置输出格式区域
+        output_format_frame = ttk.Frame(output_frame)
+        output_format_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        ttk.Label(headers_frame, text="输出字段", width=20).pack(side=tk.LEFT, padx=5)
-        ttk.Label(headers_frame, text="数据类型", width=15).pack(side=tk.LEFT, padx=5)
-        ttk.Label(headers_frame, text="存储到属性", width=20).pack(side=tk.LEFT, padx=5)
+        # 输出格式提示
+        hint_label = ttk.Label(output_format_frame, 
+                             text="定义模型输出的字段和类型，例如：story:string,choices:array",
+                             font=("Arial", 9, "italic"))
+        hint_label.pack(anchor=tk.W, pady=(0, 10))
         
-        # 编辑区域
-        self.output_editor_frame = ttk.Frame(table_frame)
-        self.output_editor_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        # 输出格式编辑
+        self.output_format_text = tk.Text(output_format_frame, height=5, width=50, wrap=tk.WORD)
+        self.output_format_text.pack(fill=tk.BOTH, expand=True)
         
-        # 初始化输出条目列表
-        self.output_entries = []
+        # 设置存储映射区域
+        storage_mapping_frame = ttk.Frame(storage_frame)
+        storage_mapping_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 添加按钮区域
-        add_frame = ttk.Frame(output_frame)
-        add_frame.pack(fill=tk.X, pady=10)
+        # 映射表格
+        columns = ("field", "type", "path")
+        self.storage_tree = ttk.Treeview(storage_mapping_frame, columns=columns, show="headings", height=10)
         
-        ttk.Label(add_frame, text="字段名:").pack(side=tk.LEFT, padx=5)
-        self.new_field_name = ttk.Entry(add_frame, width=15)
-        self.new_field_name.pack(side=tk.LEFT, padx=5)
+        self.storage_tree.heading("field", text="输出字段")
+        self.storage_tree.heading("type", text="数据类型")
+        self.storage_tree.heading("path", text="存储路径")
         
-        ttk.Label(add_frame, text="类型:").pack(side=tk.LEFT, padx=5)
-        self.new_data_type = ttk.Combobox(add_frame, values=["string", "number", "boolean", "array", "object"], width=10)
-        self.new_data_type.current(0)
-        self.new_data_type.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Label(add_frame, text="属性名:").pack(side=tk.LEFT, padx=5)
-        self.new_attr_name = ttk.Entry(add_frame, width=15)
-        self.new_attr_name.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(add_frame, text="添加字段", command=self._add_new_output).pack(side=tk.RIGHT, padx=5)
-        
-        # 帮助文本
-        help_frame = ttk.LabelFrame(output_frame, text="使用说明")
-        help_frame.pack(fill=tk.X, pady=10)
-        
-        help_text = (
-            "- 输出字段: 定义AI返回的JSON字段名称\n"
-            "- 数据类型: 指定字段的数据类型，如字符串、数字等\n"
-            "- 存储到属性: 指定将字段内容存储到哪个角色属性中\n"
-            "- 模板执行时会自动将AI输出存储到对应的角色属性中\n"
-            "- 如果属性不存在，将自动创建；如果已存在，将被更新\n"
-            "- 主要内容一般使用'story'字段，选项通常使用'choice1'、'choice2'等\n"
-            "- 可根据需要自由添加任何输出字段和存储映射"
-        )
-        
-        help_label = ttk.Label(help_frame, text=help_text, justify=tk.LEFT, wraplength=800)
-        help_label.pack(padx=10, pady=10, anchor=tk.W)
-    
-    def _add_output_row(self, field_name: str = "", data_type: str = "string", attr_name: str = "") -> None:
-        """添加输出字段行
-        
-        Args:
-            field_name: 字段名
-            data_type: 数据类型
-            attr_name: 存储到的属性名
-        """
-        row_frame = ttk.Frame(self.output_editor_frame)
-        row_frame.pack(fill=tk.X, pady=2)
-        
-        # 字段名
-        field_entry = ttk.Entry(row_frame, width=20)
-        field_entry.pack(side=tk.LEFT, padx=5)
-        if field_name:
-            field_entry.insert(0, field_name)
-        
-        # 数据类型
-        type_combo = ttk.Combobox(row_frame, values=["string", "number", "boolean", "array", "object"], width=15)
-        type_combo.pack(side=tk.LEFT, padx=5)
-        if data_type and data_type in ["string", "number", "boolean", "array", "object"]:
-            type_combo.set(data_type)
-        else:
-            type_combo.current(0)  # 默认使用string类型
-        
-        # 属性名
-        attr_entry = ttk.Entry(row_frame, width=20)
-        attr_entry.pack(side=tk.LEFT, padx=5)
-        if attr_name:
-            attr_entry.insert(0, attr_name)
-        
-        # 保存行信息
-        row_info = (field_entry, type_combo, attr_entry, row_frame)
-        self.output_entries.append(row_info)
-        
-        # 删除按钮
-        ttk.Button(row_frame, text="删除", command=lambda: self._delete_output_row(row_info)).pack(side=tk.RIGHT, padx=5)
-    
-    def _delete_output_row(self, row_info) -> None:
-        """删除输出字段行
-        
-        Args:
-            row_info: 行信息 (field_entry, type_combo, attr_entry, row_frame)
-        """
-        field_entry, type_combo, attr_entry, row_frame = row_info
-        self.output_entries.remove(row_info)
-        row_frame.destroy()
-    
-    def _add_new_output(self) -> None:
-        """添加新的输出字段"""
-        field_name = self.new_field_name.get().strip()
-        data_type = self.new_data_type.get()
-        attr_name = self.new_attr_name.get().strip()
-        
-        if not field_name:
-            messagebox.showwarning("输入错误", "字段名不能为空")
-            return
-        
-        if not attr_name:
-            # 如果没有指定属性名，使用与字段名相同的属性名
-            attr_name = field_name
-        
-        # 检查字段名是否已存在
-        existing_fields = [entry[0].get() for entry in self.output_entries]
-        if field_name in existing_fields:
-            messagebox.showwarning("重复输入", f"字段名 {field_name} 已存在")
-            return
-        
-        # 添加新行
-        self._add_output_row(field_name, data_type, attr_name)
-        
-        # 清空输入框
-        self.new_field_name.delete(0, tk.END)
-        self.new_attr_name.delete(0, tk.END)
-        self.new_data_type.current(0)
-    
-    def _setup_character_tab(self, parent: ttk.Frame) -> None:
-        """设置角色属性和存档管理选项卡 - 合并了存档管理和角色属性功能
-        
-        Args:
-            parent: 父容器
-        """
-        character_frame = ttk.Frame(parent)
-        character_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        # 顶部 - 存档管理区域
-        save_frame = ttk.LabelFrame(character_frame, text="存档管理")
-        save_frame.pack(fill=tk.X, pady=(0, 15))
-        
-        # 当前存档信息
-        current_save_path = get_save_location()
-        self.current_save_label = ttk.Label(
-            save_frame, 
-            text=f"当前存档: {current_save_path}",
-            wraplength=900
-        )
-        self.current_save_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
-        
-        # 存档操作按钮
-        save_buttons_frame = ttk.Frame(save_frame)
-        save_buttons_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-        
-        # 创建下拉选择框
-        ttk.Label(save_buttons_frame, text="可用存档:").pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.saves_combobox = ttk.Combobox(save_buttons_frame, width=40)
-        self.saves_combobox.pack(side=tk.LEFT, padx=5)
-        
-        select_btn = ttk.Button(save_buttons_frame, text="使用选中存档", command=self._select_save_file)
-        select_btn.pack(side=tk.LEFT, padx=5)
-        
-        
-        refresh_btn = ttk.Button(save_buttons_frame, text="刷新列表", command=self._refresh_saves_list)
-        refresh_btn.pack(side=tk.LEFT, padx=5)
-        
-        new_save_btn = ttk.Button(save_buttons_frame, text="创建新存档", command=self._create_new_save)
-        new_save_btn.pack(side=tk.LEFT, padx=5)
-        
-        browse_btn = ttk.Button(save_buttons_frame, text="浏览...", command=self._browse_save_file)
-        browse_btn.pack(side=tk.LEFT, padx=5)
-        
-        # 分隔线
-        ttk.Separator(character_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
-        
-        # 中部 - 角色属性区域
-        attr_frame = ttk.LabelFrame(character_frame, text="角色属性")
-        attr_frame.pack(fill=tk.BOTH, expand=True, pady=10)
-        
-        # 属性说明
-        explanation = (
-            "以下是当前存档中的所有角色属性，可以直接在提示片段中使用 {属性名} 来引用这些属性。\n"
-            "双击属性值可以直接修改，右键菜单有更多操作选项。"
-        )
-        ttk.Label(attr_frame, text=explanation, wraplength=800).pack(anchor=tk.W, pady=(5, 10))
-        
-        # 属性操作按钮
-        attr_buttons_frame = ttk.Frame(attr_frame)
-        attr_buttons_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Button(attr_buttons_frame, text="刷新属性列表", command=self._refresh_attributes).pack(side=tk.LEFT, padx=5)
-        ttk.Button(attr_buttons_frame, text="创建新属性", command=self._create_new_attribute).pack(side=tk.LEFT, padx=5)
-        ttk.Button(attr_buttons_frame, text="删除选中属性", command=self._delete_selected_attribute).pack(side=tk.LEFT, padx=5)
-        ttk.Button(attr_buttons_frame, text="设置属性类别", command=self._set_attribute_category).pack(side=tk.LEFT, padx=5)
-        
-        # 属性列表区域
-        attrs_frame = ttk.Frame(attr_frame)
-        attrs_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        # 创建属性表格
-        columns = ("name", "value", "type", "category")
-        self.attrs_tree = ttk.Treeview(attrs_frame, columns=columns, show="headings", height=15)
-        
-        # 设置列
-        self.attrs_tree.heading("name", text="属性名")
-        self.attrs_tree.heading("value", text="属性值")
-        self.attrs_tree.heading("type", text="类型")
-        self.attrs_tree.heading("category", text="类别")
-        
-        self.attrs_tree.column("name", width=150)
-        self.attrs_tree.column("value", width=300)
-        self.attrs_tree.column("type", width=80)
-        self.attrs_tree.column("category", width=100)
+        self.storage_tree.column("field", width=100)
+        self.storage_tree.column("type", width=80)
+        self.storage_tree.column("path", width=250)
         
         # 添加滚动条
-        scrollbar_y = ttk.Scrollbar(attrs_frame, orient=tk.VERTICAL, command=self.attrs_tree.yview)
-        scrollbar_x = ttk.Scrollbar(attrs_frame, orient=tk.HORIZONTAL, command=self.attrs_tree.xview)
-        self.attrs_tree.configure(yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set)
+        scrollbar = ttk.Scrollbar(storage_mapping_frame, orient=tk.VERTICAL, command=self.storage_tree.yview)
+        self.storage_tree.configure(yscrollcommand=scrollbar.set)
         
-        # 布局
-        self.attrs_tree.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
-        scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
+        self.storage_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 双击事件 - 编辑属性值
-        self.attrs_tree.bind("<Double-1>", self._edit_attribute_value)
+        # 编辑区域
+        edit_frame = ttk.Frame(storage_frame)
+        edit_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        # 右键菜单
-        self._setup_attrs_context_menu()
+        # 字段
+        field_label = ttk.Label(edit_frame, text="输出字段:")
+        field_label.grid(row=0, column=0, padx=5, pady=5)
         
-        # 立即加载存档列表和属性
-        self._refresh_saves_list()
-        self._refresh_attributes()
+        self.field_entry = ttk.Entry(edit_frame, width=15)
+        self.field_entry.grid(row=0, column=1, padx=5, pady=5)
         
-        # 底部 - 使用提示区域
-        tip_frame = ttk.LabelFrame(character_frame, text="使用提示")
-        tip_frame.pack(fill=tk.X, pady=10)
+        # 类型
+        type_label = ttk.Label(edit_frame, text="数据类型:")
+        type_label.grid(row=0, column=2, padx=5, pady=5)
         
-        tip_text = (
-            "- 双击属性值可以直接编辑\n"
-            "- 右键点击属性可以复制名称或插入到片段\n"
-            "- 在提示片段中使用 {属性名} 格式引用属性值\n"
-            "- 对于嵌套属性，可使用点语法，例如 {equipment.weapon}\n"
-            "- 特殊属性 character.xxx 也可以直接使用 {xxx} 简化引用"
-        )
+        self.type_var = tk.StringVar(value="string")
+        type_combo = ttk.Combobox(edit_frame, textvariable=self.type_var, width=10,
+                                 values=["string", "number", "boolean", "array", "object"])
+        type_combo.grid(row=0, column=3, padx=5, pady=5)
         
-        tip_label = ttk.Label(tip_frame, text=tip_text, justify=tk.LEFT, wraplength=800)
-        tip_label.pack(padx=10, pady=10, anchor=tk.W)
+        # 存储路径
+        path_label = ttk.Label(edit_frame, text="存储路径:")
+        path_label.grid(row=0, column=4, padx=5, pady=5)
+        
+        self.path_entry = ttk.Entry(edit_frame, width=25)
+        self.path_entry.grid(row=0, column=5, padx=5, pady=5)
+        
+        # 按钮
+        buttons_frame = ttk.Frame(storage_frame)
+        buttons_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        add_btn = ttk.Button(buttons_frame, text="添加/更新", width=12, command=self._add_output_row)
+        add_btn.pack(side=tk.LEFT, padx=5)
+        
+        delete_btn = ttk.Button(buttons_frame, text="删除", width=8, command=lambda: self._delete_output_row(None))
+        delete_btn.pack(side=tk.LEFT, padx=5)
+        
+        refresh_btn = ttk.Button(buttons_frame, text="提取", width=8, command=self._add_new_output)
+        refresh_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 绑定事件
+        self.storage_tree.bind("<<TreeviewSelect>>", self._on_storage_select)
+        self.storage_tree.bind("<Delete>", self._delete_output_row)
     
-    def _setup_attrs_context_menu(self) -> None:
-        """设置属性列表右键菜单"""
-        menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="复制属性名", command=self._copy_selected_attr_name)
-        menu.add_command(label="插入到当前片段", command=self._insert_attr_to_segment)
-        menu.add_separator()
-        menu.add_command(label="编辑属性值", command=self._edit_selected_attribute)
-        menu.add_command(label="设置属性类别", command=self._set_attribute_category)
-        menu.add_command(label="删除属性", command=self._delete_selected_attribute)
-        
-        def show_menu(event):
-            if self.attrs_tree.selection():
-                menu.post(event.x_root, event.y_root)
-        
-        self.attrs_tree.bind("<Button-3>", show_menu)
-    
-    def _edit_attribute_value(self, event) -> None:
-        """编辑属性值（双击事件）
+    def _add_output_row(self, field_name: str = "", data_type: str = "string", attr_name: str = "") -> None:
+        """添加或更新输出映射行
         
         Args:
-            event: 事件对象
+            field_name: 字段名称
+            data_type: 数据类型
+            attr_name: 属性存储路径
         """
-        # 获取点击的行和列
-        item = self.attrs_tree.identify_row(event.y)
-        column = self.attrs_tree.identify_column(event.x)
+        # 使用输入框的值（如果参数为空）
+        field = field_name or self.field_entry.get().strip()
+        data_type = data_type or self.type_var.get()
+        path = attr_name or self.path_entry.get().strip()
         
-        # 只有在点击值列时才编辑
-        if not item or column != "#2":  # #2是值列
+        if not field or not path:
+            messagebox.showwarning("警告", "字段名和存储路径不能为空")
             return
             
-        # 获取当前值
-        attr_name = self.attrs_tree.item(item, "values")[0]
-        current_value = get_attribute(attr_name)
+        # 更新模板数据
+        if not self.current_template:
+            messagebox.showwarning("警告", "没有选择模板")
+            return
+            
+        # 确保存在output_storage
+        if "output_storage" not in self.current_template:
+            self.current_template["output_storage"] = {}
         
-        if current_value is None:
-            return
-            
-        # 根据类型弹出不同的编辑对话框
-        if isinstance(current_value, (int, float)):
-            new_value = simpledialog.askfloat("编辑数值", f"请输入 {attr_name} 的新值:", initialvalue=current_value)
-            # 如果是整数，转回整数
-            if new_value is not None and isinstance(current_value, int):
-                new_value = int(new_value)
-        elif isinstance(current_value, bool):
-            # 布尔值使用True/False选择
-            new_value = messagebox.askyesno("编辑布尔值", f"设置 {attr_name} 为真(是)还是假(否)?")
-        elif isinstance(current_value, str):
-            # 字符串使用文本框
-            new_value = simpledialog.askstring("编辑文本", f"请输入 {attr_name} 的新值:", initialvalue=current_value)
-        elif isinstance(current_value, (list, dict)):
-            # 复杂类型显示JSON编辑器
-            json_str = json.dumps(current_value, ensure_ascii=False, indent=2)
-            new_json = self._edit_json_dialog(f"编辑 {attr_name}", json_str)
-            if new_json:
-                try:
-                    new_value = json.loads(new_json)
-                except json.JSONDecodeError:
-                    messagebox.showerror("格式错误", "输入的JSON格式不正确")
-                    return
-        else:
-            messagebox.showinfo("不支持的类型", f"不支持编辑类型: {type(current_value).__name__}")
-            return
-            
-        # 如果用户取消，new_value会是None
-        if new_value is None:
-            return
-            
-        # 更新属性值
-        try:
-            set_attribute(attr_name, new_value)
-            self._refresh_attributes()  # 刷新显示
-        except Exception as e:
-            messagebox.showerror("更新失败", f"更新属性 {attr_name} 失败: {str(e)}")
+        # 添加或更新映射
+        self.current_template["output_storage"][field] = path
+        
+        # 更新输出格式（如果存在）
+        if "output_format" not in self.current_template:
+            self.current_template["output_format"] = {}
+        
+        self.current_template["output_format"][field] = data_type
+        
+        # 刷新存储树
+        self._refresh_storage_tree()
+        
+        # 清空输入框
+        self.field_entry.delete(0, tk.END)
+        self.path_entry.delete(0, tk.END)
     
-    def _edit_selected_attribute(self) -> None:
-        """编辑选中的属性值"""
-        selection = self.attrs_tree.selection()
-        if not selection:
-            messagebox.showinfo("未选择", "请先选择一个属性")
-            return
-            
-        # 模拟双击事件
-        self._edit_attribute_value(type('Event', (), {'y': self.attrs_tree.bbox(selection[0])[1], 'x': self.attrs_tree.bbox(selection[0])[0] + 200}))
-    
-    def _create_new_attribute(self) -> None:
-        """创建新的角色属性"""
-        # 创建对话框
-        dialog = tk.Toplevel(self.root)
-        dialog.title("创建新属性")
-        dialog.geometry("400x300")
-        dialog.transient(self.root)
-        dialog.grab_set()
+    def _delete_output_row(self, row_info) -> None:
+        """删除输出映射行
         
-        # 属性名称
-        name_frame = ttk.Frame(dialog)
-        name_frame.pack(fill=tk.X, padx=20, pady=10)
-        ttk.Label(name_frame, text="属性名称:").pack(side=tk.LEFT)
-        name_entry = ttk.Entry(name_frame, width=30)
-        name_entry.pack(side=tk.LEFT, padx=5)
-        
-        # 属性类别
-        category_frame = ttk.Frame(dialog)
-        category_frame.pack(fill=tk.X, padx=20, pady=10)
-        ttk.Label(category_frame, text="属性类别:").pack(side=tk.LEFT)
-        category_entry = ttk.Entry(category_frame, width=30)
-        category_entry.pack(side=tk.LEFT, padx=5)
-        
-        # 属性类型
-        type_frame = ttk.Frame(dialog)
-        type_frame.pack(fill=tk.X, padx=20, pady=10)
-        ttk.Label(type_frame, text="属性类型:").pack(side=tk.LEFT)
-        type_var = tk.StringVar(value="string")
-        type_combo = ttk.Combobox(type_frame, textvariable=type_var, values=["string", "number", "boolean", "list", "dict"], width=28)
-        type_combo.pack(side=tk.LEFT, padx=5)
-        
-        # 属性值
-        value_frame = ttk.Frame(dialog)
-        value_frame.pack(fill=tk.X, padx=20, pady=10)
-        ttk.Label(value_frame, text="属性值:").pack(side=tk.LEFT)
-        
-        # 根据类型创建不同的输入控件
-        value_string = ttk.Entry(value_frame, width=30)
-        value_number = ttk.Spinbox(value_frame, from_=-9999, to=9999, width=29)
-        value_boolean = ttk.Combobox(value_frame, values=["True", "False"], width=28)
-        value_boolean.current(1)  # 默认False
-        value_json = scrolledtext.ScrolledText(value_frame, height=6, width=30)
-        
-        value_string.pack(side=tk.LEFT, padx=5)
-        current_value_widget = value_string
-        
-        def update_value_widget(*args):
-            nonlocal current_value_widget
-            # 移除当前显示的控件
-            current_value_widget.pack_forget()
-            
-            # 根据类型更新控件
-            value_type = type_var.get()
-            if value_type == "string":
-                current_value_widget = value_string
-            elif value_type == "number":
-                current_value_widget = value_number
-            elif value_type == "boolean":
-                current_value_widget = value_boolean
-            elif value_type in ["list", "dict"]:
-                value_json.delete("1.0", tk.END)
-                if value_type == "list":
-                    value_json.insert(tk.END, "[]")
-                else:
-                    value_json.insert(tk.END, "{}")
-                current_value_widget = value_json
-            
-            current_value_widget.pack(side=tk.LEFT, padx=5)
-        
-        type_var.trace("w", update_value_widget)
-        
-        # 创建按钮
-        buttons_frame = ttk.Frame(dialog)
-        buttons_frame.pack(fill=tk.X, padx=20, pady=20)
-        
-        def create_attribute():
-            # 获取属性名称和类别
-            attr_name = name_entry.get().strip()
-            attr_category = category_entry.get().strip() or None
-            
-            if not attr_name:
-                messagebox.showwarning("错误", "属性名称不能为空", parent=dialog)
+        Args:
+            row_info: 行信息或事件
+        """
+        if not self.current_template:
                 return
                 
-            # 获取值
-            value_type = type_var.get()
-            try:
-                if value_type == "string":
-                    attr_value = value_string.get()
-                elif value_type == "number":
-                    attr_value = float(value_number.get())
-                    # 如果是整数，转换为整数
-                    if attr_value.is_integer():
-                        attr_value = int(attr_value)
-                elif value_type == "boolean":
-                    attr_value = value_boolean.get() == "True"
-                elif value_type in ["list", "dict"]:
-                    json_str = value_json.get("1.0", tk.END).strip()
-                    attr_value = json.loads(json_str)
-            except Exception as e:
-                messagebox.showerror("错误", f"值格式不正确: {str(e)}", parent=dialog)
-                return
-                
-            # 创建属性
-            try:
-                if get_attribute(attr_name) is not None:
-                    # 属性已存在，询问是否覆盖
-                    if not messagebox.askyesno("属性已存在", f"属性 {attr_name} 已存在，是否覆盖?", parent=dialog):
-                        return
-                    # 覆盖已有属性
-                    set_attribute(attr_name, attr_value)
-                else:
-                    # 创建新属性
-                    create_attribute(attr_name, attr_value, attr_category)
-                
-                # 关闭对话框
-                dialog.destroy()
-                
-                # 刷新属性列表
-                self._refresh_attributes()
-                
-            except Exception as e:
-                messagebox.showerror("创建失败", f"创建属性失败: {str(e)}", parent=dialog)
-        
-        ttk.Button(buttons_frame, text="创建", command=create_attribute).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(buttons_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
-        
-        # 焦点设置到属性名输入框
-        name_entry.focus_set()
-        
-        # 等待对话框关闭
-        self.root.wait_window(dialog)
-    
-    def _set_attribute_category(self) -> None:
-        """设置选中属性的类别"""
-        from character.character_manager import set_attribute_category, get_attribute_category
-        
-        selection = self.attrs_tree.selection()
+        selection = self.storage_tree.selection()
         if not selection:
-            messagebox.showinfo("未选择", "请先选择一个属性")
             return
             
-        # 获取属性名称
-        item = selection[0]
-        attr_name = self.attrs_tree.item(item, "values")[0]
+        # 获取选择的项
+        item_id = selection[0]
+        field = self.storage_tree.item(item_id)["values"][0]
         
-        # 获取当前类别
-        current_category = get_attribute_category(attr_name)
+        # 从模板中删除
+        if "output_storage" in self.current_template and field in self.current_template["output_storage"]:
+            del self.current_template["output_storage"][field]
         
-        # 请求输入新类别
-        new_category = simpledialog.askstring("设置类别", 
-                                             f"为属性 '{attr_name}' 设置类别:",
-                                             initialvalue=current_category or "")
+        if "output_format" in self.current_template and field in self.current_template["output_format"]:
+            del self.current_template["output_format"][field]
         
-        # 如果用户取消，返回None
-        if new_category is None:
-            return
-            
-        # 设置类别
-        try:
-            if new_category.strip():
-                set_attribute_category(attr_name, new_category.strip())
-            else:
-                # 如果输入为空，移除类别
-                set_attribute_category(attr_name, None)
-                
-            # 刷新属性列表
-            self._refresh_attributes()
-            
-        except Exception as e:
-            messagebox.showerror("设置失败", f"设置类别失败: {str(e)}")
+        # 刷新显示
+        self._refresh_storage_tree()
     
-    def _delete_selected_attribute(self) -> None:
-        """删除选中的属性"""
-        from character.character_manager import delete_attribute
-        
-        selection = self.attrs_tree.selection()
-        if not selection:
-            messagebox.showinfo("未选择", "请先选择一个属性")
+    def _add_new_output(self) -> None:
+        """从提示片段中提取输出格式"""
+        if not self.current_template or "prompt_segments" not in self.current_template:
+            messagebox.showwarning("警告", "没有选择模板或模板没有提示片段")
             return
             
-        # 获取属性名称
-        item = selection[0]
-        attr_name = self.attrs_tree.item(item, "values")[0]
+        # 查找格式化片段
+        format_segments = []
+        for segment in self.current_template["prompt_segments"]:
+            if segment.startswith("[") and segment.endswith("]"):
+                format_segments.append(segment[1:-1])
         
-        # 确认删除
-        if not messagebox.askyesno("确认删除", f"确定要删除属性 '{attr_name}' 吗？此操作不可撤销。"):
+        if not format_segments:
+            messagebox.showwarning("警告", "未找到格式化片段")
             return
             
-        # 删除属性
-        try:
-            delete_attribute(attr_name)
+        # 解析格式
+        for format_str in format_segments:
+            # 查找字段定义
+            fields = re.findall(r'([^=,\s]+)=', format_str)
             
-            # 刷新属性列表
-            self._refresh_attributes()
-            
-        except Exception as e:
-            messagebox.showerror("删除失败", f"删除属性失败: {str(e)}")
+            for field in fields:
+                # 推断类型
+                data_type = "string"
+                if "*" in format_str:
+                    data_type = "string"  # 默认为字符串
+                
+                # 添加到存储映射
+                self._add_output_row(field, data_type, field)
+                
+        # 显示消息
+        messagebox.showinfo("成功", f"从片段中提取了 {len(fields)} 个输出字段")
+        
+        # 更新输出格式文本
+        self._refresh_output_format_text()
 
-    def _refresh_attributes(self) -> None:
-        """刷新角色属性列表"""
-        # 清空现有项
-        for item in self.attrs_tree.get_children():
-            self.attrs_tree.delete(item)
-            
-        if not CHARACTER_MODULE_AVAILABLE:
-            self.attrs_tree.insert("", tk.END, values=("错误", "角色模块不可用", "", ""))
-            return
-            
-        # 导入额外需要的功能
-        from character.character_manager import get_attribute_category
-            
-        # 获取所有角色属性
-        try:
-            all_attrs = get_all_attributes()
-            
-            # 添加到表格
-            for name, value in all_attrs.items():
-                # 获取属性类别
-                category = get_attribute_category(name) or ""
-                
-                # 处理值的显示
-                if isinstance(value, dict):
-                    display_value = f"字典 ({len(value)} 项)"
-                    value_type = "dict"
-                elif isinstance(value, list):
-                    display_value = f"列表 ({len(value)} 项)"
-                    value_type = "list"
-                elif isinstance(value, str) and len(value) > 100:
-                    display_value = value[:100] + "..."
-                    value_type = "string"
-                else:
-                    display_value = str(value)
-                    value_type = type(value).__name__
-                
-                self.attrs_tree.insert("", tk.END, values=(name, display_value, value_type, category))
-                
-            # 如果没有属性，显示提示
-            if not all_attrs:
-                self.attrs_tree.insert("", tk.END, values=("无属性", "尚未创建任何角色属性", "", ""))
-                
-        except Exception as e:
-            self.attrs_tree.insert("", tk.END, values=("错误", f"加载属性失败: {str(e)}", "", ""))
-    
-    def _setup_preview_tab(self, parent: ttk.Frame) -> None:
-        """设置JSON预览选项卡
+    def _setup_save_tab(self, parent: ttk.Frame) -> None:
+        """设置存档数据选项卡
         
         Args:
             parent: 父容器
         """
-        preview_frame = ttk.Frame(parent)
-        preview_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        # 创建分隔面板：左侧存档列表，右侧属性树
+        paned = ttk.PanedWindow(parent, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        ttk.Label(preview_frame, text="模板JSON预览与编辑:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(0, 5))
+        # 左侧存档列表区域
+        left_frame = ttk.Frame(paned, width=200)
+        paned.add(left_frame, weight=1)
         
-        # 预览文本框 - 可编辑
-        self.preview_text = scrolledtext.ScrolledText(preview_frame, wrap=tk.WORD, height=30)
-        self.preview_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        # 右侧属性树区域
+        right_frame = ttk.Frame(paned)
+        paned.add(right_frame, weight=2)
         
-        # 按钮区域
-        buttons_frame = ttk.Frame(preview_frame)
-        buttons_frame.pack(fill=tk.X, pady=5)
+        # 设置左侧存档列表
+        saves_label = ttk.Label(left_frame, text="存档列表", font=("Arial", 11, "bold"))
+        saves_label.pack(anchor=tk.W, pady=(0, 5))
+        
+        self.saves_list = tk.Listbox(left_frame, height=20, width=30)
+        self.saves_list.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.saves_list.bind("<<ListboxSelect>>", self._on_save_select)
         
         # 刷新按钮
-        ttk.Button(buttons_frame, text="刷新预览", command=self._refresh_preview).pack(side=tk.LEFT, padx=5)
+        refresh_btn = ttk.Button(left_frame, text="刷新存档列表", command=self._refresh_saves_list)
+        refresh_btn.pack(fill=tk.X, pady=5)
         
-        # 应用JSON按钮
-        ttk.Button(buttons_frame, text="应用JSON修改", command=self._apply_json_edits).pack(side=tk.RIGHT, padx=5)
+        # 设置右侧属性树
+        attrs_label = ttk.Label(right_frame, text="数据结构", font=("Arial", 11, "bold"))
+        attrs_label.pack(anchor=tk.W, pady=(0, 5))
         
-        # 格式化JSON按钮
-        ttk.Button(buttons_frame, text="格式化JSON", command=self._format_json).pack(side=tk.RIGHT, padx=5)
+        # 创建树形控件显示属性
+        self.attrs_tree = ttk.Treeview(right_frame, height=20)
+        self.attrs_tree.heading("#0", text="存档数据结构")
+        self.attrs_tree.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # 提示文本
-        tip_text = "在此处可以直接编辑JSON，然后点击'应用JSON修改'保存更改。编辑前请确保JSON格式正确。"
-        ttk.Label(preview_frame, text=tip_text, foreground="gray").pack(anchor=tk.W, pady=5)
+        # 设置属性树的上下文菜单
+        self._setup_attrs_context_menu()
+        
+        # 提示标签
+        tip_label = ttk.Label(right_frame, text="提示: 双击属性复制引用路径", font=("Arial", 9, "italic"))
+        tip_label.pack(anchor=tk.W, pady=(0, 5))
+        
+        # 初始加载
+        self._refresh_saves_list()
     
-    def _edit_json_dialog(self, title: str, json_str: str) -> Optional[str]:
-        """显示JSON编辑对话框
-        
-        Args:
-            title: 对话框标题
-            json_str: 初始JSON字符串
-            
-        Returns:
-            编辑后的JSON字符串，如果取消则返回None
-        """
-        dialog = tk.Toplevel(self.root)
-        dialog.title(title)
-        dialog.geometry("600x400")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        # 编辑区域
-        edit_text = scrolledtext.ScrolledText(dialog, wrap=tk.WORD)
-        edit_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        edit_text.insert(tk.END, json_str)
-        
-        # 按钮区域
-        buttons_frame = ttk.Frame(dialog)
-        buttons_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        # 格式化按钮
-        def format_json():
-            try:
-                text = edit_text.get("1.0", tk.END).strip()
-                data = json.loads(text)
-                formatted = json.dumps(data, indent=2, ensure_ascii=False)
-                edit_text.delete("1.0", tk.END)
-                edit_text.insert(tk.END, formatted)
-            except json.JSONDecodeError as e:
-                messagebox.showerror("格式错误", f"JSON格式不正确: {str(e)}", parent=dialog)
-        
-        ttk.Button(buttons_frame, text="格式化", command=format_json).pack(side=tk.LEFT, padx=5)
-        
-        # 结果变量
-        result = {"value": None}
-        
-        # 确定按钮
-        def on_ok():
-            try:
-                # 验证JSON格式
-                text = edit_text.get("1.0", tk.END).strip()
-                json.loads(text)  # 仅验证格式
-                result["value"] = text
-                dialog.destroy()
-            except json.JSONDecodeError as e:
-                messagebox.showerror("格式错误", f"JSON格式不正确: {str(e)}", parent=dialog)
-        
-        ttk.Button(buttons_frame, text="确定", command=on_ok).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(buttons_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
-        
-        # 等待对话框关闭
-        self.root.wait_window(dialog)
-        
-        return result["value"]
-    
-    def _apply_json_edits(self) -> None:
-        """应用JSON预览中的编辑"""
-        # 获取当前JSON文本
-        json_text = self.preview_text.get("1.0", tk.END).strip()
-        
-        if not json_text:
-            messagebox.showwarning("空内容", "JSON内容为空，无法应用")
+    def _on_save_select(self, event) -> None:
+        """处理存档选择事件"""
+        if not self.saves_list.curselection():
             return
             
-        # 尝试解析JSON
-        try:
-            template = json.loads(json_text)
-        except json.JSONDecodeError as e:
-            messagebox.showerror("格式错误", f"JSON格式不正确: {str(e)}")
-            return
-            
-        # 验证模板基本结构
-        if not self._validate_template_data(template):
-            return
-            
-        # 更新当前模板
-        self.current_template = template
-        
-        # 更新各个选项卡内容
-        self._update_info_fields(template)
-        self._update_segments_list(template)
-        self._update_output_fields(template)
-        
-        if hasattr(self, 'template_text') and "prompt_template" in template:
-            self.template_text.delete("1.0", tk.END)
-            self.template_text.insert(tk.END, template["prompt_template"])
-            
-        # 保存模板
-        if self.manager.save_template(template):
-            messagebox.showinfo("成功", f"模板 {template['template_id']} 已从JSON更新并保存")
-            
-            # 刷新模板列表
-            self._refresh_template_list()
-        else:
-            messagebox.showerror("错误", f"保存模板 {template['template_id']} 失败")
-    
-    def _format_json(self) -> None:
-        """格式化JSON预览中的内容"""
-        # 获取当前JSON文本
-        json_text = self.preview_text.get("1.0", tk.END).strip()
-        
-        if not json_text:
-            return
-            
-        # 尝试解析和格式化JSON
-        try:
-            data = json.loads(json_text)
-            formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            
-            # 更新显示
-            self.preview_text.delete("1.0", tk.END)
-            self.preview_text.insert(tk.END, formatted)
-            
-        except json.JSONDecodeError as e:
-            messagebox.showerror("格式错误", f"JSON格式不正确: {str(e)}")
-    
-
-    
-    def _select_save_file(self) -> None:
-        """选择并使用选中的存档文件"""
-        # 获取选中的存档路径
-        save_path = self.saves_combobox.get()
-        if not save_path:
-            messagebox.showwarning("选择错误", "请先选择一个存档文件")
-            return
-            
-        try:
-            # 获取文件名（不含扩展名）
-            save_name = os.path.splitext(os.path.basename(save_path))[0]
-            
-            # 使用save_manager直接加载存档
-            from character.character_manager import load_save, get_current_save_name, get_save_location
+        index = self.saves_list.curselection()[0]
+        save_name = self.saves_list.get(index)
             
             # 加载存档
-            success = load_save(save_name)
-            
-            if success:
-                # 获取当前存档信息用于显示
-                current_save_name = get_current_save_name()
-                current_save_path = get_save_location()
-                
-                # 更新当前存档标签
-                self.current_save_label.config(text=f"当前存档: {current_save_name} ({current_save_path})")
-                
-                # 刷新角色属性列表
-                self._refresh_attributes()
-                
-                messagebox.showinfo("成功", f"已切换到存档: {save_name}")
-            else:
-                messagebox.showerror("错误", f"无法加载存档 '{save_name}'")
-            
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            messagebox.showerror("错误", f"切换存档失败: {str(e)}")
+        save_data = load_save(self.save_type, save_name)
+        if save_data:
+            self._refresh_save_data_tree(save_data, save_name)
     
-    def _create_new_template(self) -> None:
-        """创建新模板"""
-        # 重置所有字段
-        for field_id, entry in self.info_entries.items():
-            if isinstance(entry, scrolledtext.ScrolledText):
-                entry.delete("1.0", tk.END)
-            else:
-                entry.delete(0, tk.END)
-                
-                # 设置默认值
-                if field_id == "version":
-                    entry.insert(0, "1.0")
-                elif field_id == "created_at":
-                    entry.insert(0, time.strftime("%Y-%m-%d"))
-        
-        # 清空标签
-        self.tags_entry.delete(0, tk.END)
-        
-        # 清空片段列表
-        self.segments_list.delete(0, tk.END)
-        
-        # 重置输出字段
-        for _, _, _, row_frame in self.output_entries:
-            row_frame.destroy()
-        self.output_entries = []
-        
-        # 添加默认输出字段
-        default_outputs = [
-            ("story", "string", "current_story"),
-            ("choice1", "string", "option1"),
-            ("choice2", "string", "option2"),
-            ("choice3", "string", "option3"),
-            ("content", "special", "story_content")
-        ]
-        
-        for field_name, data_type, attr_name in default_outputs:
-            self._add_output_row(field_name, data_type, attr_name)
-        
-        # 重置提示词模板
-        if hasattr(self, 'template_text'):
-            self._reset_template()
-        
-        # 清空预览
-        self.preview_text.delete("1.0", tk.END)
-        
-        # 重置当前模板
-        self.current_template = None
-        
-        # 自动跳转到基本信息选项卡
-        self.notebook.select(0)
-        
-        # 提示用户填写模板ID和名称
-        messagebox.showinfo("新建模板", "请填写模板ID和模板名称后点击保存")
-        
-        # 自动聚焦到模板ID输入框
-        self.info_entries["template_id"].focus_set()
-    
-    def _refresh_template_list(self) -> None:
-        """刷新模板列表"""
-        # 清空当前列表
-        for item in self.template_tree.get_children():
-            self.template_tree.delete(item)
-        
-        # 加载模板列表
-        templates = self.manager.list_templates()
-        
-        for template in templates:
-            self.template_tree.insert(
-                "",
-                tk.END,
-                values=(template["id"], template["name"], template["version"])
-            )
-    
-    def _on_template_select(self, event) -> None:
-        """处理模板选择事件
+    def _refresh_save_data_tree(self, save_data: Dict[str, Any], save_name: str) -> None:
+        """刷新存档数据树形显示
         
         Args:
-            event: 事件对象
+            save_data: 存档数据
+            save_name: 存档名称
         """
-        selection = self.template_tree.selection()
-        if not selection:
-            return
+        # 清空树
+        for item in self.attrs_tree.get_children():
+            self.attrs_tree.delete(item)
         
-        # 获取选中的模板ID
-        item = selection[0]
-        template_id = self.template_tree.item(item, "values")[0]
+        # 添加根节点
+        root_id = self.attrs_tree.insert("", "end", text=save_name, open=True, values=(save_name, ""))
         
-        # 加载模板
-        self._load_template(template_id)
+        # 递归添加数据结构
+        self._add_data_to_tree(root_id, save_data, "")
     
-    def _load_template(self, template_id: str) -> None:
-        """加载模板到编辑器
+    def _add_data_to_tree(self, parent_id: str, data: Any, path: str) -> None:
+        """递归添加数据到树形控件
         
         Args:
-            template_id: 模板ID
+            parent_id: 父节点ID
+            data: 数据
+            path: 当前路径
         """
-        template = self.manager.load_template(template_id)
-        if not template:
-            messagebox.showerror("错误", f"无法加载模板 {template_id}")
-            return
-        
-        # 保存当前模板
-        self.current_template = template
-        
-        # 更新基本信息
-        self._update_info_fields(template)
-        
-        # 更新提示片段
-        self._update_segments_list(template)
-        
-        # 更新输出和存储
-        self._update_output_fields(template)
-        
-        # 更新提示词模板
-        if hasattr(self, 'template_text') and "prompt_template" in template:
-            self.template_text.delete("1.0", tk.END)
-            self.template_text.insert(tk.END, template["prompt_template"])
-        
-        # 更新预览
-        self._refresh_preview()
-        
-        # 启用保存按钮
-        if hasattr(self, 'save_btn'):
-            self.save_btn.configure(state=tk.NORMAL)
-    
-    def _update_info_fields(self, template: Dict[str, Any]) -> None:
-        """更新基本信息字段
-        
-        Args:
-            template: 模板数据
-        """
-        # 清空现有数据
-        for field_id, entry in self.info_entries.items():
-            if isinstance(entry, scrolledtext.ScrolledText):
-                entry.delete("1.0", tk.END)
-            else:
-                entry.delete(0, tk.END)
-        
-        # 填充数据
-        for field_id, entry in self.info_entries.items():
-            if field_id in template:
-                if isinstance(entry, scrolledtext.ScrolledText):
-                    entry.insert(tk.END, template[field_id])
+        # 处理字典类型
+        if isinstance(data, dict):
+            for key, value in data.items():
+                # 构建完整路径
+                new_path = f"{path}.{key}" if path else key
+                
+                if isinstance(value, (dict, list)):
+                    # 复杂类型，创建子节点
+                    node_id = self.attrs_tree.insert(
+                        parent_id, 
+                        "end", 
+                        text=key, 
+                        open=False, 
+                        values=(new_path, type(value).__name__)
+                    )
+                    # 递归处理子节点
+                    self._add_data_to_tree(node_id, value, new_path)
                 else:
-                    entry.insert(0, template[field_id])
-        
-        # 更新标签
-        self.tags_entry.delete(0, tk.END)
-        if "tags" in template:
-            self.tags_entry.insert(0, ", ".join(template["tags"]))
-    
-    def _update_segments_list(self, template: Dict[str, Any]) -> None:
-        """更新提示片段列表
-        
-        Args:
-            template: 模板数据
-        """
-        # 清空片段列表
-        self.segments_list.delete(0, tk.END)
-        
-        # 添加片段
-        if "prompt_segments" in template:
-            for segment in template["prompt_segments"]:
-                self.segments_list.insert(tk.END, segment)
-    
-    def _update_output_fields(self, template: Dict[str, Any]) -> None:
-        """更新输出和存储字段
-        
-        Args:
-            template: 模板数据
-        """
-        # 清空现有行
-        for _, _, _, row_frame in self.output_entries:
-            row_frame.destroy()
-        self.output_entries = []
-        
-        # 准备输出格式和存储映射
-        output_format = template.get("output_format", {})
-        output_storage = template.get("output_storage", {})
-        
-        # 添加所有输出字段
-        for field, type_info in output_format.items():
-            # 查找对应的存储属性
-            attr_name = output_storage.get(field, "")
-            
-            # 添加行
-            self._add_output_row(field, type_info, attr_name)
-        
-        # 如果还有存储映射但没有对应的输出格式，也添加它们
-        for field, attr_name in output_storage.items():
-            if field not in output_format:
-                self._add_output_row(field, "string", attr_name)
+                    # 简单类型，直接显示值
+                    value_str = str(value)
+                    if len(value_str) > 50:
+                        value_str = value_str[:50] + "..."
                     
-        # 如果没有任何输出字段，添加默认字段
-        if not self.output_entries:
-            # 创建一个空行，让用户自行添加
-            self._add_output_row("", "", "")
-    
-    def _build_template_data(self) -> Dict[str, Any]:
-        """从编辑器构建模板数据
+                    self.attrs_tree.insert(
+                        parent_id, 
+                        "end", 
+                        text=f"{key}: {value_str}", 
+                        values=(new_path, type(value).__name__)
+                    )
         
-        Returns:
-            模板数据字典
-        """
-        # 基本信息
-        template = {}
-        
-        for field_id, entry in self.info_entries.items():
-            if isinstance(entry, scrolledtext.ScrolledText):
-                value = entry.get("1.0", tk.END).strip()
-            else:
-                value = entry.get().strip()
-            
-            if value:
-                template[field_id] = value
-        
-        # 标签
-        tags_text = self.tags_entry.get().strip()
-        if tags_text:
-            tags = [tag.strip() for tag in tags_text.split(",")]
-            template["tags"] = tags
-        
-        # 提示片段
-        if hasattr(self, 'segments_list'):
-            prompt_segments = list(self.segments_list.get(0, tk.END))
-            template["prompt_segments"] = prompt_segments
-        else:
-            template["prompt_segments"] = []
-        
-        # 输出格式和存储映射
-        if hasattr(self, 'output_entries'):
-            output_format = {}
-            output_storage = {}
-            
-            for field_entry, type_combo, attr_entry, _ in self.output_entries:
-                field_name = field_entry.get().strip()
-                data_type = type_combo.get()
-                attr_name = attr_entry.get().strip()
+        # 处理列表类型
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                # 构建完整路径
+                new_path = f"{path}[{i}]"
                 
-                if field_name:
-                    # 添加到输出格式，特殊字段除外
-                    if data_type != "special":
-                        output_format[field_name] = data_type
+                if isinstance(item, (dict, list)):
+                    # 复杂类型，创建子节点
+                    node_id = self.attrs_tree.insert(
+                        parent_id, 
+                        "end", 
+                        text=f"[{i}]", 
+                        open=False, 
+                        values=(new_path, type(item).__name__)
+                    )
+                    # 递归处理子节点
+                    self._add_data_to_tree(node_id, item, new_path)
+                else:
+                    # 简单类型，直接显示值
+                    value_str = str(item)
+                    if len(value_str) > 50:
+                        value_str = value_str[:50] + "..."
                     
-                    # 添加到存储映射
-                    if attr_name:
-                        output_storage[field_name] = attr_name
-            
-            if output_format:
-                template["output_format"] = output_format
-                
-            if output_storage:
-                template["output_storage"] = output_storage
-        
-        # 提示词模板
-        if hasattr(self, 'template_text'):
-            prompt_template = self.template_text.get("1.0", tk.END).strip()
-            if prompt_template:
-                template["prompt_template"] = prompt_template
-        
-        return template
+                    self.attrs_tree.insert(
+                        parent_id, 
+                        "end", 
+                        text=f"[{i}]: {value_str}", 
+                        values=(new_path, type(item).__name__)
+                    )
     
-    def _save_template_new(self) -> None:
-        """保存当前模板 - 新的实现"""
-        # 构建模板数据
-        template = self._build_template_data()
+    def _setup_attrs_context_menu(self) -> None:
+        """设置属性树的上下文菜单"""
+        self.attrs_context_menu = tk.Menu(self.attrs_tree, tearoff=0)
+        self.attrs_context_menu.add_command(label="复制引用路径", command=self._copy_attribute_path)
+        self.attrs_context_menu.add_separator()
+        self.attrs_context_menu.add_command(label="插入到提示片段", command=self._insert_to_segment)
         
-        # 检查模板ID是否存在
-        if not template.get("template_id"):
-            if "name" in template and template["name"]:
-                # 使用名称的简化版本作为ID
-                template_id = template["name"].lower().replace(" ", "_")
-                template["template_id"] = template_id
-                messagebox.showinfo("自动生成ID", f"已自动生成模板ID: {template_id}")
-            else:
-                # 要求用户输入模板ID
-                template_id = simpledialog.askstring("模板ID", "请输入模板ID:")
-                if not template_id:
-                    messagebox.showwarning("取消保存", "未提供模板ID，取消保存")
-                    return
-                template["template_id"] = template_id
+        def show_menu(event):
+            # 显示上下文菜单
+            self.attrs_context_menu.post(event.x_root, event.y_root)
         
-        # 检查并自动补充其他必要字段
-        if not template.get("name"):
-            template_name = simpledialog.askstring("模板名称", "请输入模板名称:")
-            if not template_name:
-                messagebox.showwarning("取消保存", "未提供模板名称，取消保存")
-                return
-            template["name"] = template_name
-            
-        if not template.get("prompt_segments"):
-            messagebox.showwarning("无法保存", "模板必须包含至少一个提示片段")
-            self.notebook.select(1)  # 切换到提示片段选项卡
-            return
-            
-        # 确保输出格式存在
-        if not template.get("output_format"):
-            # 使用通用默认输出格式
-            default_output = messagebox.askyesno(
-                "无输出格式",
-                "模板没有定义输出格式。是否使用默认输出格式？\n\n" +
-                "默认格式包含：\n" +
-                "- story: 主要故事内容\n" +
-                "- choice1-3: 选项内容"
-            )
-            if default_output:
-                template["output_format"] = {
-                    "story": "string",
-                    "choice1": "string",
-                    "choice2": "string",
-                    "choice3": "string"
-                }
-            else:
-                self.notebook.select(2)  # 切换到输出选项卡
-                return
-            
-        # 确保存储映射存在    
-        if not template.get("output_storage") and template.get("output_format"):
-            # 使用通用默认存储映射
-            default_storage = messagebox.askyesno(
-                "无存储映射",
-                "模板没有定义存储映射。是否自动创建存储映射？\n\n" +
-                "将为每个输出字段生成对应的存储属性名。"
-            )
-            if default_storage:
-                output_storage = {}
-                # 为每个输出字段创建默认存储映射
-                for field in template["output_format"].keys():
-                    # 使用字段名作为属性名，或者类似的方式
-                    output_storage[field] = field
-                template["output_storage"] = output_storage
-            else:
-                self.notebook.select(2)  # 切换到输出选项卡
-                return
-        
-        # 保存模板
-        try:
-            if self.manager.save_template(template):
-                messagebox.showinfo("成功", f"模板 {template['template_id']} 已保存")
-                
-                # 保存当前模板
-                self.current_template = template
-                
-                # 刷新模板列表并选中当前模板
-                self._refresh_template_list()
-                
-                # 更新预览
-                self._refresh_preview()
-                
-                # 可选: 跳转到JSON预览选项卡
-                self.notebook.select(self.notebook.index(self.notebook.tabs()[-1]))
-            else:
-                messagebox.showerror("错误", f"保存模板 {template['template_id']} 失败")
-        except Exception as e:
-            messagebox.showerror("保存错误", f"保存模板出错: {str(e)}")
+        # 绑定右键菜单
+        self.attrs_tree.bind("<Button-3>", show_menu)
+        # 绑定双击事件
+        self.attrs_tree.bind("<Double-1>", self._insert_to_segment)
     
-    # 删除旧的保存方法，使用新方法替代
-    def _save_template(self) -> None:
-        """向前兼容的保存方法，调用新实现"""
-        self._save_template_new()
-    
-    def _validate_template(self) -> None:
-        """验证当前模板"""
-        # 构建模板数据
-        template = self._build_template_data()
-        
-        # 验证模板
-        if self._validate_template_data(template):
-            messagebox.showinfo("验证成功", "模板格式正确")
-    
-    def _validate_template_data(self, template: Dict[str, Any]) -> bool:
-        """验证模板数据
-        
-        Args:
-            template: 模板数据
-            
-        Returns:
-            验证是否通过
-        """
-        # 检查必需字段
-        required_fields = ["template_id", "name", "prompt_segments"]
-        for field in required_fields:
-            if field not in template or not template[field]:
-                messagebox.showerror("验证失败", f"缺少必需字段: {field}")
-                return False
-        
-        # 检查提示片段
-        if not template["prompt_segments"]:
-            messagebox.showerror("验证失败", "提示片段列表不能为空")
-            return False
-        
-        # 检查输出格式
-        if not template.get("output_format"):
-            messagebox.showerror("验证失败", "输出格式不能为空")
-            return False
-        
-        # 检查输出存储映射
-        if not template.get("output_storage"):
-            messagebox.showwarning("警告", "没有定义输出存储映射，模板将无法自动存储输出")
-        
-        return True
-    
-    def _import_template(self) -> None:
-        """导入模板文件"""
-        file_path = filedialog.askopenfilename(
-            title="导入模板",
-            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-        )
-        
-        if not file_path:
-            return
-        
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                template = json.load(f)
-            
-            # 验证模板
-            required_fields = ["template_id", "name", "prompt_segments"]
-            for field in required_fields:
-                if field not in template:
-                    raise ValueError(f"导入的模板缺少必需字段: {field}")
-            
-            # 保存模板
-            if self.manager.save_template(template):
-                messagebox.showinfo("成功", f"模板 {template['template_id']} 已导入")
-                
-                # 刷新模板列表
-                self._refresh_template_list()
-                
-                # 加载导入的模板
-                self._load_template(template["template_id"])
-            else:
-                messagebox.showerror("错误", f"导入模板失败")
-            
-        except Exception as e:
-            messagebox.showerror("导入错误", f"导入模板失败: {str(e)}")
-    
-    def _export_template(self) -> None:
-        """导出模板到文件"""
-        selection = self.template_tree.selection()
-        if not selection:
-            messagebox.showwarning("选择错误", "请先选择一个模板")
-            return
-        
-        # 获取选中的模板ID
-        item = selection[0]
-        template_id = self.template_tree.item(item, "values")[0]
-        
-        # 加载模板
-        template = self.manager.load_template(template_id)
-        if not template:
-            messagebox.showerror("错误", f"无法加载模板 {template_id}")
-            return
-        
-        # 选择保存位置
-        file_path = filedialog.asksaveasfilename(
-            title="导出模板",
-            defaultextension=".json",
-            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")],
-            initialfile=f"{template_id}.json"
-        )
-        
-        if not file_path:
-            return
-        
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(template, f, indent=2, ensure_ascii=False)
-            
-            messagebox.showinfo("成功", f"模板已导出到 {file_path}")
-            
-        except Exception as e:
-            messagebox.showerror("导出错误", f"导出模板失败: {str(e)}")
-    
-    def _duplicate_template(self) -> None:
-        """复制模板"""
-        selection = self.template_tree.selection()
-        if not selection:
-            messagebox.showwarning("选择错误", "请先选择一个模板")
-            return
-        
-        # 获取选中的模板ID
-        item = selection[0]
-        template_id = self.template_tree.item(item, "values")[0]
-        
-        # 加载模板
-        template = self.manager.load_template(template_id)
-        if not template:
-            messagebox.showerror("错误", f"无法加载模板 {template_id}")
-            return
-        
-        # 创建副本
-        copy_template = template.copy()
-        
-        # 修改ID和名称
-        new_id = f"{template_id}_copy"
-        copy_template["template_id"] = new_id
-        copy_template["name"] = f"{copy_template.get('name', template_id)} 副本"
-        
-        # 保存副本
-        if self.manager.save_template(copy_template):
-            messagebox.showinfo("成功", f"模板已复制为 {new_id}")
-            
-            # 刷新模板列表
-            self._refresh_template_list()
-            
-            # 加载新模板
-            self._load_template(new_id)
-        else:
-            messagebox.showerror("错误", f"复制模板失败")
-    
-    def _delete_template(self) -> None:
-        """删除模板"""
-        selection = self.template_tree.selection()
-        if not selection:
-            messagebox.showwarning("选择错误", "请先选择一个模板")
-            return
-        
-        # 获取选中的模板ID
-        item = selection[0]
-        template_id = self.template_tree.item(item, "values")[0]
-        
-        # 确认删除
-        confirm = messagebox.askyesno("确认删除", f"确定要删除模板 {template_id} 吗？\n此操作不可撤销。")
-        if not confirm:
-            return
-        
-        # 删除模板
-        if self.manager.delete_template(template_id):
-            messagebox.showinfo("成功", f"模板 {template_id} 已删除")
-            
-            # 刷新模板列表
-            self._refresh_template_list()
-            
-            # 清空编辑器
-            self._create_new_template()
-        else:
-            messagebox.showerror("错误", f"删除模板 {template_id} 失败")
-    
-    def _edit_selected_template(self) -> None:
-        """编辑选中的模板"""
-        selection = self.template_tree.selection()
-        if not selection:
-            return
-        
-        # 获取选中的模板ID
-        item = selection[0]
-        template_id = self.template_tree.item(item, "values")[0]
-        
-        # 加载模板
-        self._load_template(template_id)
-
-    def _copy_selected_attr_name(self) -> None:
-        """复制选中的属性名到剪贴板"""
+    def _copy_attribute_path(self) -> None:
+        """复制选中的属性路径到剪贴板"""
         selection = self.attrs_tree.selection()
         if not selection:
             return
             
-        item = selection[0]
-        attr_name = self.attrs_tree.item(item, "values")[0]
+        # 获取选择的项
+        item_id = selection[0]
+        path = self.attrs_tree.item(item_id)["values"][0]
         
-        # 复制到剪贴板
-        self.root.clipboard_clear()
-        self.root.clipboard_append(attr_name)
-        
-        messagebox.showinfo("已复制", f"属性名 '{attr_name}' 已复制到剪贴板")
-        
-    def _insert_attr_to_segment(self) -> None:
-        """将选择的属性插入到当前编辑的片段"""
+        # 如果有路径就复制到剪贴板
+        if path:
+            self.root.clipboard_clear()
+            self.root.clipboard_append("{" + path + "}")
+            messagebox.showinfo("复制成功", f"已复制 {{{path}}} 到剪贴板")
+    
+    def _insert_to_segment(self, event=None) -> None:
+        """插入属性引用到当前编辑的片段"""
         selection = self.attrs_tree.selection()
         if not selection:
             return
             
-        # 获取选中的属性名
-        item = selection[0]
-        attr_name = self.attrs_tree.item(item, "values")[0]
-        
-        # 创建要插入的文本
-        insert_text = "{" + attr_name + "}"
-        
-        # 检查是否在片段选项卡
-        if hasattr(self, 'notebook') and self.notebook:
-            if self.notebook.select() == self.notebook.tabs()[1]:  # 第二个选项卡是提示片段
-                # 尝试在当前光标位置插入
-                try:
-                    position = self.segment_text.index(tk.INSERT)
-                    self.segment_text.insert(position, insert_text)
-                except Exception:
-                    # 如果无法获取光标位置，则追加到末尾
-                    self.segment_text.insert(tk.END, insert_text)
-                
-                messagebox.showinfo("已插入", f"属性引用 '{insert_text}' 已插入到片段")
-            else:
-                messagebox.showinfo("提示", "请先切换到'提示片段'选项卡")
-        else:
-            messagebox.showinfo("提示", "无法找到片段编辑器")
-    
-    def _reset_template(self) -> None:
-        """重置默认提示词模板"""
-        default_template = (
-            "你是一个高级故事生成AI，请根据以下提示创建故事内容。\n\n"
-            "## 背景信息\n{background}\n\n"
-            "## 内容要求\n{content}\n\n"
-            "## 输出格式\n请严格按照以下JSON格式回复：\n{format}"
-        )
-        if hasattr(self, 'template_text'):
-            self.template_text.delete("1.0", tk.END)
-            self.template_text.insert(tk.END, default_template)
-    
-    def _refresh_preview(self) -> None:
-        """刷新JSON预览"""
-        if not self.current_template:
-            return
-        
-        try:
-            # 构建模板数据
-            template = self._build_template_data()
+        # 获取选择的项
+        item_id = selection[0]
+        path = self.attrs_tree.item(item_id)["values"][0]
+        if path:
+            # 只有当提示片段选项卡处于活动状态时才插入
+            current_tab = self.notebook.index(self.notebook.select())
+            tab_name = self.notebook.tab(current_tab, "text")
             
-            # 设置预览文本
-            self.preview_text.delete("1.0", tk.END)
-            formatted = json.dumps(template, indent=2, ensure_ascii=False)
-            self.preview_text.insert(tk.END, formatted)
-            
-        except Exception as e:
-            self.preview_text.delete("1.0", tk.END)
-            self.preview_text.insert(tk.END, f"JSON格式错误: {str(e)}")
+            if tab_name == "提示片段":
+                # 插入到当前编辑的片段
+                self.segment_text.insert(tk.INSERT, "{" + path + "}")
+            elif tab_name == "输出和存储":
+                # 插入到存储路径
+                self.path_entry.delete(0, tk.END)
+                self.path_entry.insert(0, path)
+    
+    def _refresh_saves_list(self) -> None:
+        """刷新存档列表"""
+        # 清空列表
+        self.saves_list.delete(0, tk.END)
+        
+        # 获取所有存档
+        saves = list_saves(self.save_type)
+        
+        # 添加到列表
+        for save in saves:
+            self.saves_list.insert(tk.END, save)
 
     def _setup_prompt_processor_tab(self, parent: ttk.Frame) -> None:
         """设置提示词处理选项卡
@@ -1905,314 +963,200 @@ class TemplateEditor:
         Args:
             parent: 父容器
         """
-        prompt_frame = ttk.Frame(parent)
-        prompt_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        frame = ttk.Frame(parent)
+        frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # 模板自定义区域
-        template_frame = ttk.LabelFrame(prompt_frame, text="自定义提示词模板")
+        # 标题
+        title_label = ttk.Label(frame, text="提示词处理器", font=("Arial", 12, "bold"))
+        title_label.pack(anchor=tk.W, pady=(0, 10))
+        
+        # 选择模板
+        template_frame = ttk.Frame(frame)
         template_frame.pack(fill=tk.X, pady=5)
         
-        self.template_text = scrolledtext.ScrolledText(template_frame, height=8)
-        self.template_text.pack(fill=tk.X, padx=10, pady=10)
+        template_label = ttk.Label(template_frame, text="当前模板:")
+        template_label.pack(side=tk.LEFT, padx=5)
         
-        # 如果没有初始模板，提供默认模板
-        default_template = (
-            "你是一个高级故事生成AI，请根据以下提示创建故事内容。\n\n"
-            "## 背景信息\n{background}\n\n"
-            "## 内容要求\n{content}\n\n"
-            "## 输出格式\n请严格按照以下JSON格式回复：\n{format}"
-        )
-        self.template_text.insert(tk.END, default_template)
+        self.template_name_var = tk.StringVar()
+        template_name = ttk.Label(template_frame, textvariable=self.template_name_var, font=("Arial", 10, "bold"))
+        template_name.pack(side=tk.LEFT, padx=5)
         
-        # 功能按钮
-        button_frame = ttk.Frame(prompt_frame)
+        # 构建按钮
+        button_frame = ttk.Frame(frame)
         button_frame.pack(fill=tk.X, pady=10)
         
-        ttk.Button(button_frame, text="重置默认模板", command=self._reset_template).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="应用模板", command=self._apply_template).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="生成提示词预览", command=self._generate_prompt).pack(side=tk.RIGHT, padx=5)
+        build_btn = ttk.Button(button_frame, text="构建提示词", command=self._build_prompt)
+        build_btn.pack(side=tk.LEFT, padx=5)
         
-        # 提示词预览区域
-        preview_frame = ttk.LabelFrame(prompt_frame, text="生成的提示词预览")
-        preview_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        copy_btn = ttk.Button(button_frame, text="复制到剪贴板", command=self._copy_prompt)
+        copy_btn.pack(side=tk.LEFT, padx=5)
         
-        self.result_text = scrolledtext.ScrolledText(preview_frame, height=15, wrap=tk.WORD)
-        self.result_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # 预览区域
+        preview_label = ttk.Label(frame, text="提示词预览:")
+        preview_label.pack(anchor=tk.W, pady=(10, 5))
         
-        # 复制按钮
-        ttk.Button(preview_frame, text="复制到剪贴板", command=self._copy_prompt).pack(anchor=tk.E, padx=10, pady=(0, 10))
+        self.prompt_preview = tk.Text(frame, height=20, width=80, wrap=tk.WORD)
+        self.prompt_preview.pack(fill=tk.BOTH, expand=True)
         
-        # 使用说明
-        help_frame = ttk.LabelFrame(prompt_frame, text="提示词模板说明")
-        help_frame.pack(fill=tk.X, pady=10)
-        
-        help_text = (
-            "# 提示词模板说明\n\n"
-            "提示词模板定义了如何将提示片段组合成完整的提示词。\n\n"
-            "## 常用占位符\n\n"
-            "  • {background} - 将被替换为所有背景信息片段 (用括号标记的片段)\n"
-            "  • {content} - 将被替换为所有内容指令片段 (用尖括号标记的片段)\n"
-            "  • {format} - 将被替换为所有输出格式片段 (用方括号标记的片段)\n"
-            "  • {input_info} - 所有背景信息片段组合\n"
-            "  • {output_content} - 内容片段内容\n"
-            "  • {output_key} - 输出字段名\n"
-            "  • {json_format} - 组合的JSON格式\n"
-            "- 必须至少使用一个占位符，否则模板无法正确应用\n"
-            "- 修改模板后点击\"应用模板\"保存，然后可以点击\"生成提示词预览\"查看效果\n"
-            "- 此处设置的模板会保存在模板JSON中，每个模板可以有自己的专属提示词模板"
-        )
-        
-        help_label = ttk.Label(help_frame, text=help_text, justify=tk.LEFT, wraplength=800)
-        help_label.pack(padx=10, pady=10, anchor=tk.W)
+        # 滚动条
+        preview_scroll = ttk.Scrollbar(self.prompt_preview, orient=tk.VERTICAL, command=self.prompt_preview.yview)
+        self.prompt_preview.configure(yscrollcommand=preview_scroll.set)
+        preview_scroll.pack(side=tk.RIGHT, fill=tk.Y)
     
-    def _apply_template(self) -> None:
-        """应用当前编辑的提示词模板"""
-        if not self.current_template:
-            messagebox.showwarning("操作错误", "请先加载或创建一个模板")
+    def _build_prompt(self) -> None:
+        """构建模板提示词"""
+        if not self.current_template or "prompt_segments" not in self.current_template:
+            messagebox.showwarning("警告", "没有选择模板或模板没有提示片段")
             return
             
-        # 获取模板内容
-        template_content = self.template_text.get("1.0", tk.END).strip()
-        if not template_content:
-            messagebox.showwarning("操作错误", "提示词模板不能为空")
-            return
-            
-        # 更新当前模板
-        self.current_template["prompt_template"] = template_content
-        messagebox.showinfo("成功", "提示词模板已应用到当前模板")
-    
-    def _generate_prompt(self) -> None:
-        """生成提示词预览"""
-        if not self.current_template:
-            messagebox.showwarning("操作错误", "请先加载或创建一个模板")
-            return
-            
-        # 获取模板内容
-        template_content = self.template_text.get("1.0", tk.END).strip()
-        if not template_content:
-            messagebox.showwarning("操作错误", "提示词模板不能为空")
-            return
-            
-        # 获取提示片段
-        if not hasattr(self, 'segments_list'):
-            messagebox.showwarning("操作错误", "无法获取提示片段")
-            return
-            
-        segments = list(self.segments_list.get(0, tk.END))
-        if not segments:
-            messagebox.showwarning("操作错误", "当前模板没有提示片段")
-            return
-            
+        # 获取模板片段
+        segments = self.current_template.get("prompt_segments", [])
+        
+        # 构建提示词
         try:
-            # 创建临时提示词处理器
-            temp_processor = PromptProcessor(template_content)
+            prompt = self.prompt_processor.build_prompt(segments)
             
-            # 对片段进行预处理
-            processed_segments = []
-            if CHARACTER_MODULE_AVAILABLE:
-                # 获取所有角色属性
-                all_attributes = get_all_attributes()
-                
-                # 处理每个片段中的属性占位符
-                for segment in segments:
-                    processed = segment
-                    for attr_name, attr_value in all_attributes.items():
-                        placeholder = "{" + attr_name + "}"
-                        if placeholder in processed:
-                            processed = processed.replace(placeholder, str(attr_value))
-                        
-                        # 处理character.xxx格式
-                        character_placeholder = "{character." + attr_name + "}"
-                        if character_placeholder in processed:
-                            processed = processed.replace(character_placeholder, str(attr_value))
-                    
-                    processed_segments.append(processed)
-            else:
-                processed_segments = segments
+            # 显示到预览区域
+            self.prompt_preview.delete("1.0", tk.END)
+            self.prompt_preview.insert("1.0", prompt)
             
-            # 生成提示词
-            prompt = temp_processor.build_prompt(processed_segments)
-            
-            # 显示预览
-            self.result_text.delete("1.0", tk.END)
-            self.result_text.insert(tk.END, prompt)
         except Exception as e:
-            messagebox.showerror("错误", f"生成提示词失败: {str(e)}")
+            messagebox.showerror("错误", f"构建提示词失败: {str(e)}")
     
     def _copy_prompt(self) -> None:
-        """复制生成的提示词到剪贴板"""
-        prompt = self.result_text.get("1.0", tk.END).strip()
+        """复制提示词到剪贴板"""
+        prompt = self.prompt_preview.get("1.0", tk.END).strip()
         if not prompt:
-            messagebox.showwarning("操作错误", "没有可复制的提示词")
+            messagebox.showwarning("警告", "没有可复制的提示词")
             return
             
         # 复制到剪贴板
         self.root.clipboard_clear()
         self.root.clipboard_append(prompt)
         
-        messagebox.showinfo("成功", "提示词已复制到剪贴板")
-
-    def _create_new_save(self) -> None:
-        """创建一个新的存档文件"""
-        # 请求输入文件名和可选的角色名称
-        filename = simpledialog.askstring("新建存档", "请输入存档名称 (不含扩展名):")
-        if not filename:
-            return
-            
-        # 确保文件名有效
-        filename = filename.strip()
-        if not filename:
-            messagebox.showwarning("输入错误", "存档名称不能为空")
-            return
-            
-        # 请求输入角色名称和描述
-        character_name = simpledialog.askstring("角色名称", "请输入角色名称 (可选):", initialvalue="")
-        description = simpledialog.askstring("存档描述", "请输入存档描述 (可选):", initialvalue="")
-        
-        try:
-            # 使用save_manager创建新存档
-            from character.character_manager import create_save
-            
-            # 检查存档是否已存在
-            from character.character_manager import list_saves
-            saves = list_saves()
-            if filename in saves:
-                overwrite = messagebox.askyesno("存档已存在", f"存档 '{filename}' 已存在，是否覆盖？")
-                if not overwrite:
-                    return
-            
-            # 创建新存档
-            success = create_save(filename, character_name or "", description or "")
-            
-            if success:
-                # 刷新存档列表
-                self._refresh_saves_list()
-                
-                # 刷新角色属性选项卡
-                self._refresh_attributes()
-                
-                messagebox.showinfo("成功", f"已创建并选择新存档: {filename}")
-            else:
-                messagebox.showerror("错误", "创建存档失败，请检查控制台输出")
-                
-        except Exception as e:
-            messagebox.showerror("错误", f"创建存档失败: {str(e)}")
+        messagebox.showinfo("复制成功", "提示词已复制到剪贴板")
     
-    def _browse_save_file(self) -> None:
-        """浏览并选择一个存档文件"""
-        initial_dir = self.saves_dir if self.saves_dir else os.path.expanduser("~")
-        file_path = filedialog.askopenfilename(
-            title="选择存档文件",
-            initialdir=initial_dir,
-            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-        )
+    def _setup_preview_tab(self, parent: ttk.Frame) -> None:
+        """设置JSON预览选项卡
         
-        if not file_path:
-            return
+        Args:
+            parent: 父容器
+        """
+        frame = ttk.Frame(parent)
+        frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # 标题和提示
+        title_frame = ttk.Frame(frame)
+        title_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        title_label = ttk.Label(title_frame, text="JSON预览", font=("Arial", 12, "bold"))
+        title_label.pack(side=tk.LEFT)
+        
+        # 按钮区域
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        format_btn = ttk.Button(button_frame, text="格式化", command=self._format_json)
+        format_btn.pack(side=tk.LEFT, padx=5)
+        
+        copy_btn = ttk.Button(button_frame, text="复制", command=self._copy_json)
+        copy_btn.pack(side=tk.LEFT, padx=5)
+        
+        edit_btn = ttk.Button(button_frame, text="编辑", command=self._apply_json_edits)
+        edit_btn.pack(side=tk.LEFT, padx=5)
+        
+        # JSON预览区域
+        self.json_preview = tk.Text(frame, height=25, width=80, wrap=tk.NONE)
+        self.json_preview.pack(fill=tk.BOTH, expand=True)
+        
+        # 添加滚动条
+        h_scroll = ttk.Scrollbar(frame, orient=tk.HORIZONTAL, command=self.json_preview.xview)
+        h_scroll.pack(fill=tk.X)
+        self.json_preview.configure(xscrollcommand=h_scroll.set)
+        
+        v_scroll = ttk.Scrollbar(self.json_preview, orient=tk.VERTICAL, command=self.json_preview.yview)
+        v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.json_preview.configure(yscrollcommand=v_scroll.set)
+    
+    def _edit_json_dialog(self, title: str, json_str: str) -> Optional[str]:
+        """显示JSON编辑对话框
+        
+        Args:
+            title: 对话框标题
+            json_str: JSON字符串
             
-        try:
-            # 验证是否为有效的存档文件
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+        Returns:
+            编辑后的JSON字符串，取消则返回None
+        """
+        dialog = tk.Toplevel(self.root)
+        dialog.title(title)
+        dialog.geometry("800x600")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 编辑区域
+        edit_frame = ttk.Frame(dialog)
+        edit_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        json_text = tk.Text(edit_frame, height=25, width=80, wrap=tk.NONE)
+        json_text.pack(fill=tk.BOTH, expand=True)
+        json_text.insert("1.0", json_str)
+        
+        # 添加滚动条
+        h_scroll = ttk.Scrollbar(edit_frame, orient=tk.HORIZONTAL, command=json_text.xview)
+        h_scroll.pack(fill=tk.X)
+        json_text.configure(xscrollcommand=h_scroll.set)
+        
+        v_scroll = ttk.Scrollbar(json_text, orient=tk.VERTICAL, command=json_text.yview)
+        v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        json_text.configure(yscrollcommand=v_scroll.set)
+        
+        # 格式化按钮
+        def format_json():
+            try:
+                content = json_text.get("1.0", tk.END).strip()
+                data = json.loads(content)
+                formatted = json.dumps(data, indent=2, ensure_ascii=False)
                 
-            # 同时检查新旧字段结构，兼容两种格式
-            if "attributes" not in data and "角色数据" not in data:
-                messagebox.showwarning("无效存档", "选择的文件不是有效的角色存档")
-                return
+                json_text.delete("1.0", tk.END)
+                json_text.insert("1.0", formatted)
+            except Exception as e:
+                messagebox.showerror("格式化错误", f"JSON格式错误: {str(e)}")
                 
-            # 获取文件名（不含扩展名）和目录
-            save_file = os.path.basename(file_path)
-            save_dir = os.path.dirname(file_path)
-            save_name = os.path.splitext(save_file)[0]  # 移除.json扩展名
-            
-            # 使用save_manager加载存档
-            from character.character_manager import load_save
-            success = load_save(save_name)
-            
-            if success:
-                # 更新存档目录
-                self.saves_dir = save_dir
-                
-                # 刷新存档列表
-                self._refresh_saves_list()
-                
-                # 刷新角色属性选项卡
-                self._refresh_attributes()
-                
-                messagebox.showinfo("成功", f"已切换到存档: {save_name}")
-            else:
-                messagebox.showerror("错误", f"加载存档 '{save_name}' 失败")
-            
-        except json.JSONDecodeError:
-            messagebox.showerror("错误", "所选文件不是有效的JSON文件")
-        except Exception as e:
-            messagebox.showerror("错误", f"选择存档失败: {str(e)}")
-            
-    def _refresh_saves_list(self) -> None:
-        """刷新存档文件列表"""
-        try:
-            # 使用character_manager获取当前存档信息
-            from character.character_manager import get_current_save_name, get_save_location, list_saves
-            
-            current_save_path = get_save_location()
-            current_save_name = get_current_save_name()
-            
-            # 更新当前存档标签
-            self.current_save_label.config(text=f"当前存档: {current_save_name} ({current_save_path})")
-            
-            # 获取存档目录
-            save_dir = os.path.dirname(current_save_path)
-            if os.path.basename(save_dir) != "characters":
-                # 确保我们使用的是characters目录
-                save_dir = os.path.join(save_dir, "characters")
-            
-            # 更新保存的目录路径
-            self.saves_dir = save_dir
-                
-            # 获取存档列表
-            saves = list_saves()
-            
-            # 清空下拉列表
-            self.saves_combobox.set("")
-            json_files = []
-            
-            # 检查是否有存档
-            if not saves:
-                # 如果list_saves返回空列表，使用文件系统查找
-                if os.path.exists(save_dir):
-                    for file in os.listdir(save_dir):
-                        if file.endswith(".json"):
-                            full_path = os.path.join(save_dir, file)
-                            json_files.append(full_path)
-            else:
-                # 从存档列表构建完整路径
-                for save_name in saves:
-                    full_path = os.path.join(save_dir, f"{save_name}.json")
-                    if os.path.exists(full_path):
-                        json_files.append(full_path)
-            
-            # 更新下拉列表
-            if json_files:
-                self.saves_combobox["values"] = json_files
-                
-                # 设置当前选中的存档
-                if current_save_path in json_files:
-                    self.saves_combobox.set(current_save_path)
-                else:
-                    # 如果当前存档不在列表中，选择第一个
-                    self.saves_combobox.set(json_files[0])
-            else:
-                print("警告: 未找到任何存档文件")
-                
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            messagebox.showerror("错误", f"刷新存档列表失败: {str(e)}")
-
-    # 保留一个空的方法，以防其他地方调用
-    def _setup_context_menu(self) -> None:
-        """设置右键菜单 - 已移除"""
-        pass
+        format_btn = ttk.Button(dialog, text="格式化", command=format_json)
+        format_btn.pack(side=tk.LEFT, padx=10, pady=10)
+        
+        # 结果变量
+        result = {"json": None}
+        
+        # 确定和取消按钮
+        def on_ok():
+            try:
+                content = json_text.get("1.0", tk.END).strip()
+                # 验证JSON格式
+                json.loads(content)
+                result["json"] = content
+                dialog.destroy()
+            except Exception as e:
+                messagebox.showerror("JSON错误", f"JSON格式错误: {str(e)}")
+        
+        def on_cancel():
+            result["json"] = None
+            dialog.destroy()
+        
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(fill=tk.X, pady=10)
+        
+        ok_btn = ttk.Button(btn_frame, text="确定", command=on_ok)
+        ok_btn.pack(side=tk.RIGHT, padx=10)
+        
+        cancel_btn = ttk.Button(btn_frame, text="取消", command=on_cancel)
+        cancel_btn.pack(side=tk.RIGHT, padx=10)
+        
+        # 等待对话框关闭
+        dialog.wait_window()
+        
+        return result["json"]
 
 def run_editor():
     """运行模板编辑器"""
