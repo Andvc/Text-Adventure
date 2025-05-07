@@ -11,7 +11,7 @@ Text Adventure/
 ├── storyline/         # 故事线模块 - 故事模板与剧情生成
 ├── save/              # 游戏存档目录
 ├── test/              # 测试文件目录
-└── main.py            # 游戏主入口
+└── editor/            # JSON编辑器 - 配置文件可视化编辑工具（可选）
 ```
 
 ## 模块协同示例：simple_loop
@@ -24,18 +24,25 @@ Text Adventure/
 # 创建存档数据
 save_data = {
     "id": "test_save",
-    "character": {
-        "name": "李逍遥",
-        "level": "炼气期"
+    "era": {
+        "name": "魔法纪元",
+        "era_number": 3,
+        "key_features": ["魔法", "冒险", "神秘"],
+        "dominant_races": ["人类", "精灵", "矮人"],
+        "magic_system": "元素魔法",
+        "technology_level": "中世纪"
     },
-    "world": "奇幻大陆",
-    "summary": "少年李逍遥无意间获得一本古老的功法，开始了修仙之路。",
-    "story": "李逍遥来到了一座神秘的洞穴前，传说里面藏有珍贵的宝物。",
-    "selected_choice": "探索洞穴"
+    "character_info": {
+        "name": "李逍遥",
+        "race": "人类",
+        "identity": "见习法师"
+    },
+    "current_location": "魔法学院",
+    "current_state": "正在学习基础魔法"
 }
 
 # 保存到文件
-save_data("test_save", "character", save_data)
+save_data("test_save", save_data)
 ```
 
 数据模块负责：
@@ -49,36 +56,36 @@ save_data("test_save", "character", save_data)
 // storyline/templates/simple_loop.json
 {
   "template_id": "simple_loop",
+  "name": "简单循环",
+  "description": "生成基本的游戏循环内容，包括场景描述和选项",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-05-05",
+  "tags": [
+    "游戏循环",
+    "场景",
+    "选项"
+  ],
   "prompt_segments": [
-    "## 角色信息",
-    "(主角名称：{character.name})",
-    "(主角身份：{character.level})",
-    "(所处世界：{world})",
-    "",
-    "## 故事背景",
-    "(故事概要：{summary})",
-    "",
-    "## 当前情况",
-    "(当前事件：{story})",
-    "(玩家选择了：{selected_choice})",
-    "",
-    "## 生成要求",
-    "<基于玩家的选择 '{selected_choice}'，描述接下来发生的新事件...>",
-    "[story=\"*\"]",
-    "",
-    "<根据新发生的事件，生成三个不同的选择...>",
-    "[choice1=\"*\",choice2=\"*\",choice3=\"*\"]",
-    "",
-    "<根据新的事件发展，更新故事梗概...>",
-    "[summary=\"*\"]"
+    "(纪元名称: {era.name})",
+    "(纪元编号: 第{era.era_number}纪元)",
+    "(主要特征: {era.key_features_joined})",
+    "(主导种族: {era.dominant_races_joined})",
+    "(魔法体系: {era.magic_system})",
+    "(技术水平: {era.technology_level})",
+    "(角色信息: {character_info})",
+    "(当前位置: {current_location})",
+    "(当前状态: {current_state})",
+    "<根据以上信息，生成一个游戏场景。场景应该：\n1. 符合纪元背景和设定\n2. 考虑角色的种族和身份特点\n3. 与当前位置和状态相关\n4. 包含环境描述和互动元素\n\n场景描述应包含：\n- 环境细节\n- 可交互对象\n- 潜在危险或机遇\n- 氛围营造>",
+    "[scene_description=\"string\"]",
+    "<基于场景描述，生成三个不同的选项。每个选项应该：\n1. 提供不同的行动方向\n2. 与场景元素相关\n3. 可能带来不同的结果\n4. 符合角色特点\n\n每个选项对象必须包含：\n- text：选项文本\n- type：选项类型（探索/战斗/对话/其他）\n- risk_level：风险等级（低/中/高）\n- potential_outcome：可能的结果>",
+    "[options=\"array\"]"
   ],
   "output_storage": {
-    "story": "story",
-    "summary": "summary",
-    "choice1": "choice1",
-    "choice2": "choice2",
-    "choice3": "choice3"
-  }
+    "scene_description": "current_scene",
+    "options": "current_options"
+  },
+  "prompt_template": "你是一位专业的游戏设计师。请根据以下信息，创建一个引人入胜的游戏场景和相应的选项。\n\n## 背景信息\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
 }
 ```
 
@@ -95,18 +102,19 @@ prompt_processor = PromptProcessor()
 
 # 构建提示词
 segments = [
-    "(主角名称：{character.name})",
-    "(主角身份：{character.level})",
-    "(所处世界：{world})",
-    "(故事概要：{summary})",
-    "(当前事件：{story})",
-    "(玩家选择了：{selected_choice})",
-    "<基于玩家的选择 '{selected_choice}'，描述接下来发生的新事件...>",
-    "[story=\"*\"]",
-    "<根据新发生的事件，生成三个不同的选择...>",
-    "[choice1=\"*\",choice2=\"*\",choice3=\"*\"]",
-    "<根据新的事件发展，更新故事梗概...>",
-    "[summary=\"*\"]"
+    "(纪元名称: {era.name})",
+    "(纪元编号: 第{era.era_number}纪元)",
+    "(主要特征: {era.key_features_joined})",
+    "(主导种族: {era.dominant_races_joined})",
+    "(魔法体系: {era.magic_system})",
+    "(技术水平: {era.technology_level})",
+    "(角色信息: {character_info})",
+    "(当前位置: {current_location})",
+    "(当前状态: {current_state})",
+    "<根据以上信息，生成一个游戏场景...>",
+    "[scene_description=\"string\"]",
+    "<基于场景描述，生成三个不同的选项...>",
+    "[options=\"array\"]"
 ]
 
 # 生成提示词
@@ -129,29 +137,29 @@ AI模块负责：
 manager = StorylineManager()
 
 # 2. 加载存档
-save_data = load_save("test_save", "character")
+save_data = load_save("test_save")
 
 # 3. 生成新故事
 success = manager.generate_story("test_save", "simple_loop")
 
 if success:
     # 4. 获取生成的内容
-    story = get_save_value("story", save_data)
-    choices = [
-        get_save_value("choice1", save_data),
-        get_save_value("choice2", save_data),
-        get_save_value("choice3", save_data)
-    ]
+    scene = get_save_value("current_scene", save_data)
+    options = get_save_value("current_options", save_data)
     
-    # 5. 显示故事和选择
-    print(f"故事内容: {story}")
-    print(f"选项1: {choices[0]}")
-    print(f"选项2: {choices[1]}")
-    print(f"选项3: {choices[2]}")
+    # 5. 显示场景和选项
+    print(f"场景描述: {scene}")
+    for i, option in enumerate(options, 1):
+        print(f"选项{i}: {option['text']}")
+        print(f"类型: {option['type']}")
+        print(f"风险等级: {option['risk_level']}")
+        print(f"可能结果: {option['potential_outcome']}")
+        print()
     
     # 6. 更新选择
-    save_data["selected_choice"] = choices[0]
-    save_data("test_save", "character", save_data)
+    selected_option = options[0]
+    save_data["selected_option"] = selected_option
+    save_data("test_save", save_data)
 ```
 
 ## 模块职责
@@ -189,6 +197,11 @@ echo "DEEPSEEK_API_KEY=your_api_key" > .env
 3. 运行测试示例
 ```bash
 python test/test_simple_loop_cycle.py
+```
+
+4. 使用JSON编辑器（可选）
+```bash
+python3 -m editor
 ```
 
 ## 最佳实践

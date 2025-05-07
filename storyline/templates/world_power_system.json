@@ -1,0 +1,37 @@
+{
+  "template_id": "world_power_system",
+  "name": "世界等级制度",
+  "description": "定义游戏世界中的7级等级制度，包括每个等级的名称、能力范围、社会地位和进阶方法",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-05-05",
+  "tags": [
+    "世界观",
+    "等级制度",
+    "角色成长"
+  ],
+  "prompt_segments": [
+    "(纪元名称: {era.name})",
+    "(纪元编号: 第{era.era_number}纪元)",
+    "(主要特征: {era.key_features_joined})",
+    "(主导种族: {era.dominant_races_joined})",
+    "(魔法体系: {era.magic_system})",
+    "(技术水平: {era.technology_level})",
+    "(纪元历史: {era.history})",
+    "<基于以上纪元信息，设计一个包含7个等级的完整修炼/进阶体系。这个体系应当：\n1. 与纪元的背景和特点高度契合\n2. 包含清晰的进阶路径和条件\n3. 反映出不同等级间的能力差距\n4. 考虑不同种族在此体系中的优势和特点\n\n请提供以下信息：\n\n### 1. 等级体系总览\n设计一个包含以下字段的对象：\n- name：体系名称（应当反映该纪元的核心特点）\n- core_concept：核心理念（该体系的核心思想和原则）\n- origin：历史渊源（该体系如何形成和发展）\n- basic_rules：基本规则（该体系运作的基本法则）>",
+    "[power_system=\"object\"]",
+    "<详细定义7个等级，从最低（1级）到最高（7级）。每个等级必须包含：\n- level：等级数字（1到7）\n- name：等级名称（应当富有该纪元特色）\n- description：该等级能力范围的详细描述\n- status：拥有该等级力量者在社会中的地位\n- advancement：晋升到下一等级的条件和方法（最高级除外）\n\n注意事项：\n- 确保体系具有内在逻辑性和一致性\n- 等级名称应当反映纪元特色\n- 最高等级（7级）应当极为罕见，代表几乎无法企及的力量巅峰\n- 大多数普通人应该处于体系之外或位于最低等级>",
+    "[power_levels=\"array\"]",
+    "<描述主导种族在此等级体系中的特点、优势和潜力。返回一个对象，键为种族名称，值为该种族在此体系中的特性描述。>",
+    "[racial_traits=\"object\"]",
+    "<为每个等级提供至少一位代表性人物，每个人物包括：\n- name：人物姓名\n- level：等级数字\n- title：头衔或称号\n- background：简要背景和成就>",
+    "[notable_figures=\"array\"]"
+  ],
+  "output_storage": {
+    "power_system": "power_system",
+    "power_levels": "power_levels",
+    "racial_traits": "racial_traits",
+    "notable_figures": "notable_figures"
+  },
+  "prompt_template": "你是一位世界构建专家，精通各种奇幻与科幻世界的设计。请根据以下纪元信息，创建一个详细且连贯的等级制度。\n\n## 纪元信息\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
+} 

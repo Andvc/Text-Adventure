@@ -19,15 +19,14 @@ DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 # API端点
 DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
 
-# 提示词模板 - JSON格式
+# 提示词模板 - 带有三引号描述的JSON格式
 # 注意：这里使用了双大括号 {{ 和 }} 来在格式化字符串中表示单个大括号
-DEFAULT_PROMPT_TEMPLATE = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释：
+DEFAULT_PROMPT_TEMPLATE = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释。
+三引号中的内容是指令，您需要根据指令生成内容：
 
-{{
-  "{output_key}": "请在这里填入中文{output_content}"
-}}
+{json_format}
 
-请确保输出是有效的JSON格式。
+请确保输出是有效的JSON格式，包含所有指定的字段。
 提供给你的信息: {input_info}"""
 
 # 超时设置

@@ -1,0 +1,31 @@
+{
+  "template_id": "character_options",
+  "name": "角色选项生成",
+  "description": "基于纪元信息生成角色的种族和身份选项",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-05-05",
+  "tags": [
+    "角色创建",
+    "种族",
+    "身份"
+  ],
+  "prompt_segments": [
+    "(纪元名称: {era.name})",
+    "(纪元编号: 第{era.era_number}纪元)",
+    "(主要特征: {era.key_features_joined})",
+    "(主导种族: {era.dominant_races_joined})",
+    "(魔法体系: {era.magic_system})",
+    "(技术水平: {era.technology_level})",
+    "(历史背景: {era_history})",
+    "<严格基于以上纪元的主导种族({era.dominant_races_joined})，生成三个可选的种族或种族变种。\n\n种族限制：\n- 必须严格基于纪元的主导种族生成选项\n- 可以选择这些主导种族中的一个或创建其变种（如森林精灵、山地矮人等）\n- 必须明确基于主导种族之一，不能创造全新的种族\n\n每个种族对象必须包含以下字段：\n- name：种族名称\n- description：特点描述\n- magic_affinity：魔法倾向\n\n示例：如果主导种族包括精灵，可以创建：\n- 高等精灵（基于精灵）\n- 森林精灵（基于精灵）\n但不能创建完全不相关的种族如龙人或影族>",
+    "[race_options=\"array\"]",
+    "<基于以上纪元信息，为这些种族生成三个可选的身份背景。每个身份对象必须包含以下字段：\n- name：身份名称\n- status：社会地位\n- background：背景故事\n\n确保所有选项在该纪元的历史和社会背景下合理可信>",
+    "[identity_options=\"array\"]"
+  ],
+  "output_storage": {
+    "race_options": "race_options",
+    "identity_options": "identity_options"
+  },
+  "prompt_template": "你是一位资深的角色设计师。请根据以下纪元信息，创建符合该纪元背景的角色选项。\n\n## 纪元信息\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
+} 

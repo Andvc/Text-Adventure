@@ -1,0 +1,44 @@
+{
+  "template_id": "new_format_example",
+  "name": "新格式示例模板",
+  "description": "使用新格式的冒险故事生成模板，演示三引号描述",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-05-01",
+  "tags": [
+    "示例",
+    "冒险",
+    "新格式"
+  ],
+  "prompt_segments": [
+    "## 角色信息",
+    "(主角名称：{character.name})",
+    "(主角身份：{character.level})",
+    "(所处世界：{world})",
+    "",
+    "## 故事背景",
+    "(故事概要：{summary})",
+    "",
+    "## 当前情况",
+    "(当前事件：{story})",
+    "(玩家选择了：{selected_choice})",
+    "",
+    "## 生成要求",
+    "<基于玩家的选择 '{selected_choice}'，描述接下来发生的新事件。注意：\n1. 新事件必须是玩家选择的直接结果\n2. 情节要符合世界观设定\n3. 要体现主角的特殊身份和目标\n4. 要与之前的剧情保持连贯\n5. 不要重复之前的内容>",
+    "[story=\"string\"]",
+    "",
+    "<根据新发生的事件，生成三个不同的选择。每个选择都应该：\n1. 提供明显不同的行动方向\n2. 能带来不同的后果\n3. 符合当前情境\n4. 推动故事向前发展>",
+    "[choice1=\"string\", choice2=\"string\", choice3=\"string\"]",
+    "",
+    "<根据新的事件发展，更新故事梗概。要求：\n1. 包含新发生的重要事件和之前已经发生的事件\n2. 保持简洁清晰\n3. 突出故事主线>",
+    "[summary=\"string\"]"
+  ],
+  "output_storage": {
+    "story": "story",
+    "summary": "summary",
+    "choice1": "choice1",
+    "choice2": "choice2",
+    "choice3": "choice3"
+  },
+  "prompt_template": "你是一个专业的故事生成AI。请基于以下信息创建新的故事内容。\n\n{background}\n\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容，而不是直接复制指令：\n{format}\n\n重要提示：\n1. 新生成的故事必须是玩家选择的直接结果\n2. 不要重复之前的内容\n3. 每个选择都要引向不同的发展方向\n4. 保持故事的连贯性和趣味性"
+} 

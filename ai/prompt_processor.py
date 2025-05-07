@@ -3,7 +3,7 @@
 """
 
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import config
 
 class PromptProcessor:
@@ -18,7 +18,7 @@ class PromptProcessor:
         """
         self.template = template if template else config.DEFAULT_PROMPT_TEMPLATE
     
-    def parse_segments(self, segments: List[str]) -> Dict[str, List[str]]:
+    def parse_segments(self, segments: List[str]) -> Dict[str, Any]:
         """
         解析输入片段，按类型分类
         
@@ -57,9 +57,20 @@ class PromptProcessor:
             
             if current.startswith("<") and current.endswith(">") and next_seg.startswith("[") and next_seg.endswith("]"):
                 # 找到一对配对的内容和格式
+                content = current[1:-1]
+                format_str = next_seg[1:-1]
+                
+                # 提取字段名和类型: [field="type"] -> field, type
+                field_types = {}
+                for match in re.finditer(r'([^=,\s]+)=["\'"]([^"\']+)["\']', format_str):
+                    field_name = match.group(1)
+                    field_type = match.group(2)
+                    field_types[field_name] = field_type
+                
                 content_formats.append({
-                    "content": current[1:-1],
-                    "format": next_seg[1:-1]
+                    "content": content,
+                    "format": format_str,
+                    "field_types": field_types
                 })
                 i += 2  # 跳过已配对的两个片段
             else:
@@ -68,20 +79,37 @@ class PromptProcessor:
         result["pairs"] = content_formats
         return result
     
-    def _build_json_template(self, fields_content: Dict[str, str]) -> str:
+    def _build_json_template(self, fields_content: Dict[str, Tuple[str, str]]) -> str:
         """
-        构建JSON模板
+        构建包含类型和三引号描述的JSON模板
         
         Args:
-            fields_content: 字段和内容的映射
+            fields_content: 字段名到(类型,内容)元组的映射
             
         Returns:
-            JSON格式的模板字符串
+            JSON格式的模板字符串，包含三引号描述
         """
-        json_template = "{\n"
-        for field, content in fields_content.items():
-            json_template += f'  "{field}": "请在这里填入中文-{content}",\n'
-        return json_template.rstrip(",\n") + "\n}"
+        lines = ["{"]
+        
+        fields = list(fields_content.keys())
+        for i, field in enumerate(fields):
+            field_type, content = fields_content[field]
+            
+            # 添加字段和类型
+            lines.append(f'  "{field}": "{field_type}"')
+            
+            # 添加三引号描述
+            if content:
+                lines.append(f'  """')
+                lines.append(f'  {content}')
+                lines.append(f'  """')
+            
+            # 添加逗号（除了最后一个字段）
+            if i < len(fields) - 1:
+                lines[-1] += ','
+        
+        lines.append("}")
+        return "\n".join(lines)
     
     def _apply_template(self, template: str, replacements: Dict[str, str]) -> str:
         """
@@ -122,18 +150,10 @@ class PromptProcessor:
         if parsed["pairs"]:
             for pair in parsed["pairs"]:
                 content = pair["content"]
-                format_str = pair["format"]
-                fields = re.findall(r'([^=,\s]+)=', format_str)
-                for field in fields:
-                    fields_content[field] = content
-        
-        # 从单独的格式中提取多字段
-        elif parsed["format"]:
-            format_str = parsed["format"][0]
-            fields = re.findall(r'([^=,\s]+)=', format_str)
-            for field in fields:
-                field_name = field.replace("_", " ")
-                fields_content[field] = f"{field_name}-内容"
+                field_types = pair.get("field_types", {})
+                
+                for field, field_type in field_types.items():
+                    fields_content[field] = (field_type, content)
         
         # 构建JSON模板
         json_template = self._build_json_template(fields_content)
@@ -153,7 +173,8 @@ class PromptProcessor:
                 print(f"使用自定义模板失败: {str(e)}，回退到默认模板")
         
         # 使用默认的多字段模板
-        multi_field_template = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释：
+        multi_field_template = """请严格按照以下JSON格式输出，不要添加任何其他内容或解释。
+三引号中的内容是指令，您需要根据指令生成内容：
 
 {json_format}
 

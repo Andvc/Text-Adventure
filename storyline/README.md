@@ -9,13 +9,7 @@ storyline/
 ├── README.md                # 本文档
 ├── __init__.py              # 模块初始化文件
 ├── storyline_manager.py     # 故事线管理核心功能
-├── templates/               # 存放故事模板的目录
-│   ├── simple_loop.json     # 简单循环测试模板
-│   ├── adventure_template.json # 冒险类故事模板
-│   └── world_setting.json   # 世界背景设定模板
-└── tools/                   # 工具集
-    ├── template_editor.py   # 图形化模板编辑工具
-    └── template_builder.py  # 命令行模板构建工具
+└── templates/               # 存放故事模板的目录
 ```
 
 ## 核心概念

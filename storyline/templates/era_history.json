@@ -1,0 +1,28 @@
+{
+  "template_id": "era_history",
+  "name": "纪元历史生成",
+  "description": "基于纪元基本信息生成详细历史",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-05-05",
+  "tags": [
+    "角色创建",
+    "纪元历史"
+  ],
+  "prompt_segments": [
+    "(纪元名称: {era.name})",
+    "(纪元编号: 第{era.era_number}纪元)",
+    "(主要特征: {era.key_features_joined})",
+    "(主导种族: {era.dominant_races_joined})",
+    "(魔法体系: {era.magic_system})",
+    "(技术水平: {era.technology_level})",
+    "(毁灭原因: {era.destruction_cause})",
+    "(基本背景: {era.era_background})",
+    "<根据上述信息，生成一段详细的纪元历史。请创建一个连贯且细节丰富的历史叙述，覆盖该纪元的：\n1. 起源：纪元的开始和早期发展\n2. 发展阶段：重要的社会、技术和魔法进步\n3. 繁荣时期：纪元的黄金时代\n4. 衰落：导致毁灭的转折点\n5. 毁灭过程：最终导致纪元结束的事件\n\n在叙述中应包含：\n- 重大历史事件\n- 著名历史人物\n- 社会变迁\n- 技术/魔法进步\n\n确保历史符合逻辑且与提供的背景信息一致>",
+    "[era_history=\"string\"]"
+  ],
+  "output_storage": {
+    "era_history": "era_history"
+  },
+  "prompt_template": "你是一位专业的世界史学家。请根据以下纪元信息，创建一个详尽且引人入胜的历史叙述。\n\n## 纪元信息\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
+} 

@@ -4,7 +4,7 @@
   "description": "基于用户输入创建完整的世界设定",
   "version": "1.0",
   "author": "系统",
-  "created_at": "2024-05-01",
+  "created_at": "2025-05-01",
   "tags": [
     "核心",
     "世界观"
@@ -12,27 +12,9 @@
   "prompt_segments": [
     "(用户选择: {world_choice})",
     "(用户输入世界观: {user_world_input})",
-    "<根据用户的世界观描述，创建一个详细且连贯的世界设定，包含以下方面>",
-    "<根据输入补充合理的细节，确保世界观内部一致性>",
-    "[world_name=\"*\"]",
-    "[world_description=\"*\"]",
-    "[world_history=\"*\"]",
-    "[magic_system=\"*\"]",
-    "[major_races=\"*\"]",
-    "[factions=\"*\"]",
-    "[key_locations=\"*\"]",
-    "[themes=\"*\"]"
+    "<根据用户的世界观描述，创建一个详细且连贯的世界设定，包含以下方面。根据输入补充合理的细节，确保世界观内部一致性：\n1. 世界名称：一个独特且富有意义的名字\n2. 世界描述：总体环境和氛围\n3. 世界历史：重要历史事件和发展脉络\n4. 魔法系统：独特的魔法或科技体系\n5. 主要种族：世界中的主要种族及其特点\n6. 主要势力：重要的政治、宗教或军事组织\n7. 关键地点：具有特殊意义的地点\n8. 主题元素：贯穿整个世界的核心主题>",
+    "[world_name=\"string\", world_description=\"string\", world_history=\"string\", magic_system=\"string\", major_races=\"string\", factions=\"string\", key_locations=\"string\", themes=\"string\"]"
   ],
-  "output_format": {
-    "world_name": "string",
-    "world_description": "string",
-    "world_history": "string",
-    "magic_system": "string",
-    "major_races": "string",
-    "factions": "string",
-    "key_locations": "string",
-    "themes": "string"
-  },
   "output_storage": {
     "world_name": "世界名称",
     "world_description": "世界描述",
@@ -43,5 +25,5 @@
     "key_locations": "关键地点",
     "themes": "主题元素"
   },
-  "prompt_template": "你是一个专业的世界观构建者。请根据用户的简短描述，创建一个详细而合理的世界设定。\n\n## 用户输入\n{input_info}\n\n## 输出要求\n请创建一个内部一致、合理且有深度的世界背景，包括世界名称、总体描述、历史沿革、魔法或科技系统、主要种族、重要势力和地点等。避免过于笼统的描述，提供具体而富有特色的细节。\n\n## 输出格式\n请严格按照以下JSON格式回复：\n{format}"
+  "prompt_template": "你是一个专业的世界观构建者。请根据用户的简短描述，创建一个详细而合理的世界设定。\n\n## 用户输入\n{input_info}\n\n## 输出要求\n请创建一个内部一致、合理且有深度的世界背景，包括世界名称、总体描述、历史沿革、魔法或科技系统、主要种族、重要势力和地点等。避免过于笼统的描述，提供具体而富有特色的细节。\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
 }
