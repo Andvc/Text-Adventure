@@ -1,0 +1,31 @@
+{
+  "name": "艾里克",
+  "gender": "男",
+  "age": 28,
+  "number": 1,
+  "selected_race": "人类",
+  "selected_career": "魔法研究员",
+  "attributes": {
+    "strength": 7,
+    "agility": 8,
+    "intelligence": 15,
+    "wisdom": 12,
+    "charisma": 9
+  },
+  "skills": [
+    "魔法理论",
+    "历史研究",
+    "古文明遗迹探索"
+  ],
+  "inventory": [
+    "古代符文笔记",
+    "晶铸时代的魔法碎片",
+    "探险装备"
+  ],
+  "character_story": "",
+  "current_location": "帝国学院图书馆",
+  "quest_progress": {
+    "main_quest": "寻找失落的知识",
+    "progress": 0.2
+  }
+}

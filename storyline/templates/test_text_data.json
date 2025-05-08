@@ -1,0 +1,28 @@
+{
+  "template_id": "test_text_data",
+  "name": "文本数据引用测试",
+  "description": "测试从data/text文件夹读取数据的功能",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-05-21",
+  "tags": [
+    "测试",
+    "文本数据"
+  ],
+  "prompt_segments": [
+    "(角色名称: {name})",
+    "(文明世界背景: {text;eras;eras[{number}].name} - 第{text;eras;eras[0].era_number}纪元)",
+    "(第二纪元: {text;eras;eras[1].name} - {text;eras;eras[1].era_background})",
+    "(当前纪元: {text;eras;eras[4].name})",
+    "(能力等级系统名称: {text;power_levels;system_name})",
+    "(基础能力描述: {text;power_levels;levels[0].universal_description})",
+    "(传奇能力例子: {text;power_levels;levels[4].examples.ability})",
+    "(原初级别魔法: {text;power_levels;levels[6].examples.magic})",
+    "<根据以上信息，为角色创建一段背景故事，包含他生活的纪元背景和他具备的能力等级。故事应该反映纪元特征和能力体系>",
+    "[character_story=\"string\"]"
+  ],
+  "output_storage": {
+    "character_story": "character_story"
+  },
+  "prompt_template": "你是一位世界观设定专家。请根据以下信息，创建符合背景的角色故事。\n\n## 输入信息\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
+}

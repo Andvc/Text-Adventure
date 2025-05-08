@@ -626,9 +626,11 @@ class JsonEditor:
             
             # 导入必要模块
             from storyline.storyline_manager import StorylineManager
+            from ai.prompt_processor import PromptProcessor
             
-            # 创建管理器
+            # 创建管理器和处理器
             manager = StorylineManager()
+            processor = PromptProcessor()
             
             # 获取模板
             template = manager.load_template(template_id)
@@ -636,18 +638,20 @@ class JsonEditor:
                 messagebox.showerror("模板错误", f"无法加载模板: {template_id}")
                 return
             
-            # 处理提示片段
+            # 处理提示片段（使用PromptProcessor而不是StorylineManager的方法）
             prompt_segments = template.get("prompt_segments", [])
-            processed_segments = manager._process_template_segments(prompt_segments, test_data)
+            processed_segments = []
+            for segment in prompt_segments:
+                processed = processor._replace_placeholders(segment, test_data)
+                processed_segments.append(processed)
             
-            # 生成最终提示词
+            # 生成最终提示词（传递test_data参数）
             if "prompt_template" in template:
                 custom_template = template["prompt_template"]
-                from ai.prompt_processor import PromptProcessor
                 custom_processor = PromptProcessor(custom_template)
-                prompt = custom_processor.build_prompt(processed_segments)
+                prompt = custom_processor.build_prompt(processed_segments, test_data)
             else:
-                prompt = manager.prompt_processor.build_prompt(processed_segments)
+                prompt = processor.build_prompt(processed_segments, test_data)
             
             # 创建结果窗口
             self._show_test_results(dialog, prompt, template_id, save_id)

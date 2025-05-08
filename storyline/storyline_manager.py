@@ -170,6 +170,8 @@ class StorylineManager:
     def _replace_placeholders(self, text: str, save_data: Dict[str, Any]) -> str:
         """替换文本中的占位符
         
+        此方法现在委托给PromptProcessor的实现，以确保一致的占位符处理逻辑
+        
         Args:
             text: 包含占位符的文本
             save_data: 存档数据
@@ -177,34 +179,10 @@ class StorylineManager:
         Returns:
             替换后的文本
         """
-        # 替换基本属性占位符
-        for key, value in save_data.items():
-            if isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, list):
-                        # 处理数组
-                        for i, item in enumerate(sub_value):
-                            placeholder = "{" + f"{key}.{sub_key}[{i}]" + "}"
-                            if placeholder in text:
-                                text = text.replace(placeholder, str(item))
-                    else:
-                        # 处理普通值
-                        placeholder = "{" + f"{key}.{sub_key}" + "}"
-                        if placeholder in text:
-                            text = text.replace(placeholder, str(sub_value))
-            else:
-                placeholder = "{" + key + "}"
-                if placeholder in text:
-                    text = text.replace(placeholder, str(value))
-        
-        # 添加一些通用默认值
-        if "{world_setting}" in text and "world" not in save_data:
-            text = text.replace("{world_setting}", "奇幻世界")
-            
-        if "{location}" in text and "location" not in save_data:
-            text = text.replace("{location}", "神秘之地")
-            
-        return text
+        # 使用PromptProcessor的实现
+        from ai.prompt_processor import PromptProcessor
+        processor = PromptProcessor()
+        return processor._replace_placeholders(text, save_data)
     
     def _process_template_segments(self, segments: List[str], save_data: Dict[str, Any]) -> List[str]:
         """处理模板片段，替换其中的存档数据占位符
@@ -261,9 +239,9 @@ class StorylineManager:
             if "prompt_template" in template:
                 custom_template = template["prompt_template"]
                 custom_processor = PromptProcessor(custom_template)
-                prompt = custom_processor.build_prompt(processed_segments)
+                prompt = custom_processor.build_prompt(processed_segments, current_save)
             else:
-                prompt = self.prompt_processor.build_prompt(processed_segments)
+                prompt = self.prompt_processor.build_prompt(processed_segments, current_save)
             
             print("\n=== 最终生成的提示词 ===")
             print(prompt)
