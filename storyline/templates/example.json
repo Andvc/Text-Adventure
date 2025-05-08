@@ -1,0 +1,40 @@
+{
+  "template_id": "example",
+  "name": "高级功能演示模板",
+  "description": "展示嵌套占位符系统、文本数据引用和数组处理功能",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-06-08",
+  "tags": [
+    "示例",
+    "嵌套占位符",
+    "文本数据引用",
+    "数组处理"
+  ],
+  "prompt_segments": [
+    "(角色名称: {character.name})",
+    "(角色身份: {character.{identity_field}})",
+    "(当前纪元: {text;eras;eras[{current_era_index}].name})",
+    "(纪元编号: 第{text;eras;eras[{current_era_index}].era_number}纪元)",
+    "(主要特征: {text;eras;eras[{current_era_index}].key_features[0]}, {text;eras;eras[{current_era_index}].key_features[1]})",
+    "(当前地点: {location})",
+    "(可用技能: {skills})",
+    "(选中技能: {skills[{active_skill_index}]})",
+    "(能力等级: {text;power_levels;levels[{power_level}].name})",
+    "(能力描述: {text;power_levels;levels[{power_level}].universal_description})",
+    "<根据以上信息，创建一个角色背景故事。故事应该：\n1. 反映角色在当前纪元的生活和经历\n2. 展示角色的身份和社会地位\n3. 解释角色如何获得当前的能力等级\n4. 描述角色与所处地点的关系\n5. 提及角色掌握的技能，特别是当前选中的技能>",
+    "[character_background=\"string\"]",
+    "<基于角色背景，描述角色当前面临的场景和挑战。场景应该：\n1. 与当前地点相关\n2. 提供使用角色技能的机会\n3. 反映纪元特征\n4. 包含环境描述和氛围营造>",
+    "[current_scene=\"string\"]",
+    "<提供三个选项，让角色应对当前场景。每个选项应该：\n1. 提供明显不同的行动方向\n2. 至少有一个选项与选中技能相关\n3. 反映角色能力等级的限制和可能性\n4. 可能带来不同的后果>",
+    "[option1=\"string\", option2=\"string\", option3=\"string\"]"
+  ],
+  "output_storage": {
+    "character_background": "character_background",
+    "current_scene": "current_scene",
+    "option1": "option1",
+    "option2": "option2",
+    "option3": "option3"
+  },
+  "prompt_template": "你是一位专业的角色背景与场景设计师，擅长创建符合世界观设定的内容。请根据以下信息，创建引人入胜的角色背景和场景。\n\n## 背景信息\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容是指令，你需要根据指令生成内容：\n{format}"
+} 

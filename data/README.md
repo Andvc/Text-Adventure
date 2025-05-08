@@ -332,6 +332,143 @@ data_manager.clear_cache('text')
 data_manager.clear_cache('text', 'items')
 ```
 
+## 文本数据引用系统
+
+### 概述
+
+文本数据引用系统允许在游戏流程中直接访问`data/text`目录下的配置文件，提供了一种统一、灵活的方式来引用游戏中的静态数据，如世界设定、物品数据、NPC信息等。
+
+### 使用方法
+
+在占位符中使用以下格式引用文本数据：
+
+```
+{text;file_name;path}
+```
+
+其中：
+- `text`: 固定前缀，表示这是一个文本数据引用
+- `file_name`: 文件名（不含扩展名），对应data/text目录下的JSON文件
+- `path`: 数据访问路径，使用点号分隔层级，如'worlds[0].name'
+
+### 示例
+
+#### 1. 引用世界设定
+
+假设`data/text/worlds.json`内容如下：
+
+```json
+{
+  "worlds": [
+    {
+      "name": "魔法大陆",
+      "era": "魔法纪元",
+      "regions": ["北部山脉", "中央平原", "南方沙漠"]
+    },
+    {
+      "name": "科技帝国",
+      "era": "蒸汽纪元",
+      "regions": ["工业区", "商业中心", "研究基地"]
+    }
+  ],
+  "current_world_index": 0
+}
+```
+
+可以通过以下方式引用：
+
+```python
+# 获取第一个世界的名称
+world_name = "{text;worlds;worlds[0].name}"  # 结果: 魔法大陆
+
+# 获取当前世界（使用索引）
+current_world_index = "{text;worlds;current_world_index}"  # 结果: 0
+current_world = "{text;worlds;worlds[{text;worlds;current_world_index}].name}"  # 结果: 魔法大陆
+
+# 获取地区列表
+regions = "{text;worlds;worlds[0].regions}"  # 结果: ['北部山脉', '中央平原', '南方沙漠']
+```
+
+#### 2. 引用物品数据
+
+假设`data/text/items.json`内容如下：
+
+```json
+{
+  "weapons": {
+    "sword": {
+      "name": "铁剑",
+      "damage": 10,
+      "value": 100
+    },
+    "bow": {
+      "name": "猎弓",
+      "damage": 8,
+      "value": 120
+    }
+  },
+  "armors": {
+    "leather": {
+      "name": "皮甲",
+      "defense": 5,
+      "value": 80
+    }
+  }
+}
+```
+
+可以通过以下方式引用：
+
+```python
+# 获取武器名称
+sword_name = "{text;items;weapons.sword.name}"  # 结果: 铁剑
+
+# 获取防具防御值
+leather_defense = "{text;items;armors.leather.defense}"  # 结果: 5
+```
+
+### 嵌套使用
+
+文本数据引用可以与其他占位符格式相结合，实现更复杂的数据访问模式：
+
+```python
+# 假设存档中有一个变量指定当前装备
+save_data = {
+  "current_weapon": "sword"
+}
+
+# 使用存档中的变量作为物品索引
+weapon_name = "{text;items;weapons.{current_weapon}.name}"  # 结果: 铁剑
+```
+
+### 最佳实践
+
+1. **数据组织**：按功能将数据文件分类存放，如`worlds.json`、`items.json`、`npcs.json`等
+2. **路径使用**：使用规范的路径格式，避免过于复杂的嵌套
+3. **错误处理**：提供默认值或错误提示，处理数据不存在的情况
+4. **缓存考虑**：频繁访问的数据考虑使用`get_save_value`预先获取，减少解析开销
+5. **版本管理**：更新文本数据时，考虑向下兼容性，避免破坏现有引用
+
+## 变更日志
+
+### 2024-05-21
+
+- **文本数据引用系统**：
+  - 添加`{text;file_name;path}`格式的占位符支持，允许从data/text目录下的JSON文件中读取数据
+  - 支持嵌套路径访问和数组索引
+  - 与嵌套占位符系统集成，支持动态路径和索引
+  - 添加错误处理和日志记录
+  
+- **数组处理改进**：
+  - 支持完整数组引用，当索引不存在时返回整个数组
+  - 添加变量索引支持，允许使用`{index}`格式动态指定数组索引
+  - 优化边界检查，提供更友好的错误信息
+
+- **内部优化**：
+  - 改进缓存系统，减少文件IO操作
+  - 增强路径解析逻辑，提高性能和稳定性
+  - 统一错误处理流程
+
 ## 未来计划
 
 以下功能计划在未来版本中实现：
