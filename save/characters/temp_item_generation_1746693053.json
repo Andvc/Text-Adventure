@@ -1,0 +1,18 @@
+{
+    "id": "temp_item_generation_1746693053",
+    "name": "测试角色",
+    "era": {
+        "id": "crystal_forge_era",
+        "name": "晶铸文明",
+        "era_number": 3,
+        "key_features_joined": "研发高度稳定的符文科技, 实现魔法工业化, 矮人主导的工程奇迹, 城市漂浮于空中",
+        "dominant_races_joined": "矮人, 人类, 地精",
+        "magic_system": "符文工程学",
+        "technology_level": "工业化",
+        "history": "在永夜灾变结束后，矮人族崛起并开创了符文科技的黄金时代。他们将魔法与工业相结合，创造了自动化的符文机械和庞大的能量网络。巨大的符文锻造厂日夜不息地运转，飞艇和浮空城成为这个时代的标志。"
+    },
+    "temp_level": 1,
+    "temp_type": "weapon",
+    "temp_detail": "适合初学者使用的远程武器",
+    "selected_choice": ""
+}

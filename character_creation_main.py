@@ -29,7 +29,7 @@ def main():
             print(f"角色: {result.get('character_name')}")
             print(f"纪元: {result.get('era')}")
             print(f"种族: {result.get('race')}")
-            print(f"身份: {result.get('identity')}")
+            print(f"职业: {result.get('career')}")
             print(f"存档ID: {result.get('save_id')}")
             print("\n您现在可以开始游戏，进入这个纪元的世界。")
         else:

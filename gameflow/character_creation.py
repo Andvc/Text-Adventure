@@ -191,10 +191,10 @@ class CharacterCreationManager:
     def generate_character_options(self) -> Dict:
         """生成角色选项
         
-        使用storyline模板生成可选的种族和身份
+        使用storyline模板生成可选的种族和职业
         
         Returns:
-            Dict: 生成的角色选项，包含种族和身份
+            Dict: 生成的角色选项，包含种族和职业
         """
         if not self.selected_era:
             return {"error": "未选择纪元"}
@@ -233,30 +233,33 @@ class CharacterCreationManager:
                 
                 if "race_options" in updated_save:
                     print(f"race_options类型: {type(updated_save['race_options'])}")
-                    print(f"race_options长度: {len(updated_save['race_options'])}")
-                    if updated_save['race_options']:
-                        print(f"第一个种族的键: {', '.join(updated_save['race_options'][0].keys())}")
+                    if isinstance(updated_save['race_options'], list):
+                        print(f"race_options长度: {len(updated_save['race_options'])}")
+                        if updated_save['race_options']:
+                            print(f"第一个种族的键: {', '.join(updated_save['race_options'][0].keys())}")
+                    else:
+                        print(f"警告: race_options不是预期的列表类型")
                 else:
                     print("存档中不存在race_options键!")
                     print(f"可能的相关键: {[k for k in updated_save.keys() if 'race' in k.lower()]}")
                 
-                if "identity_options" in updated_save:
-                    print(f"identity_options类型: {type(updated_save['identity_options'])}")
-                    if isinstance(updated_save['identity_options'], dict):
-                        print(f"identity_options键: {', '.join(updated_save['identity_options'].keys())}")
-                    elif isinstance(updated_save['identity_options'], list):
-                        print(f"identity_options长度: {len(updated_save['identity_options'])}")
-                        if updated_save['identity_options']:
-                            print(f"第一个身份的键: {', '.join(updated_save['identity_options'][0].keys())}")
+                if "career_options" in updated_save:
+                    print(f"career_options类型: {type(updated_save['career_options'])}")
+                    if isinstance(updated_save['career_options'], list):
+                        print(f"career_options长度: {len(updated_save['career_options'])}")
+                        if updated_save['career_options']:
+                            print(f"第一个职业的键: {', '.join(updated_save['career_options'][0].keys())}")
+                    else:
+                        print(f"警告: career_options不是预期的列表类型")
                 else:
-                    print("存档中不存在identity_options键!")
-                    print(f"可能的相关键: {[k for k in updated_save.keys() if 'identity' in k.lower() or 'option' in k.lower()]}")
+                    print("存档中不存在career_options键!")
+                    print(f"可能的相关键: {[k for k in updated_save.keys() if 'career' in k.lower() or 'option' in k.lower()]}")
                 print("===============================\n")
                 
-                if updated_save and "race_options" in updated_save and "identity_options" in updated_save:
+                if updated_save and "race_options" in updated_save and "career_options" in updated_save:
                     self.character_options = {
                         'race_options': updated_save["race_options"],
-                        'identity_options': updated_save["identity_options"]
+                        'career_options': updated_save["career_options"]
                     }
                     return self.character_options
             
@@ -267,15 +270,15 @@ class CharacterCreationManager:
             print(f"生成角色选项时出错: {str(e)}")
             return {"error": f"生成角色选项时出错: {str(e)}"}
     
-    def save_character_data(self, character_name: str, selected_race: Dict, selected_identity: Dict) -> bool:
+    def save_character_data(self, character_name: str, selected_race: Dict, selected_career: Dict) -> bool:
         """保存角色数据
         
-        将选择的纪元、种族和身份数据保存到存档
+        将选择的纪元、种族和职业数据保存到存档
         
         Args:
             character_name (str): 角色名称
             selected_race (Dict): 选中的种族
-            selected_identity (Dict): 选中的身份
+            selected_career (Dict): 选中的职业
             
         Returns:
             bool: 是否成功保存
@@ -295,7 +298,7 @@ class CharacterCreationManager:
                     "history": self.era_history if self.era_history else self.selected_era.get('era_background')
                 },
                 "race": selected_race,
-                "identity": selected_identity,
+                "career": selected_career,
                 "stats": {
                     "level": 1,
                     "experience": 0,
@@ -307,7 +310,7 @@ class CharacterCreationManager:
                 "journal": [{
                     "entry_id": 1,
                     "title": "开始旅程",
-                    "content": f"我的名字是{character_name}，{selected_identity.get('background', '')}",
+                    "content": f"我的名字是{character_name}，{selected_career.get('description', '').split('.')[0]}",
                     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")
                 }],
                 "quests": [],
@@ -380,44 +383,35 @@ class CharacterCreationManager:
             # 显示种族选项
             print("\n可选种族:")
             race_options = options.get('race_options', [])
+            
             for i, race in enumerate(race_options, 1):
-                print(f"{i}. {race.get('name')}")
-                print(f"   特点: {race.get('description')}")
-                print(f"   魔法倾向: {race.get('magic_affinity')}")
+                print(f"{i}. {race.get('sub_race')} (主种族: {race.get('main_race')})")
+                print(f"   描述: {race.get('description')}")
             
             # 获取种族选择
             race_choice = int(input("\n请选择种族 (1-3): "))
             selected_race = race_options[race_choice - 1]
             
-            # 显示身份选项
-            print("\n可选身份:")
-            identity_options = options.get('identity_options', [])
-            if isinstance(identity_options, dict):
-                # 如果identity_options是一个字典，按种族名称获取对应的身份列表
-                selected_identities = identity_options.get(selected_race.get('name'), [])
-                if not selected_identities:
-                    # 如果没有找到，使用第一个种族的身份列表
-                    race_name = next(iter(identity_options.keys()), None)
-                    selected_identities = identity_options.get(race_name, [])
-            else:
-                # 如果identity_options是一个列表，直接使用
-                selected_identities = identity_options
-                
-            for i, identity in enumerate(selected_identities, 1):
-                print(f"{i}. {identity.get('name')}")
-                print(f"   社会地位: {identity.get('status')}")
-                print(f"   背景: {identity.get('background')}")
+            # 显示职业选项
+            print("\n可选职业:")
+            career_options = options.get('career_options', [])
             
-            # 获取身份选择
-            identity_choice = int(input("\n请选择身份 (1-3): "))
-            selected_identity = selected_identities[identity_choice - 1]
+            for i, career in enumerate(career_options, 1):
+                print(f"{i}. {career.get('name')}")
+                print(f"   描述: {career.get('description')}")
+                print(f"   成长路径: {career.get('growth_path')}")
+                print(f"   特殊能力: {career.get('special_abilities')}")
+            
+            # 获取职业选择
+            career_choice = int(input("\n请选择职业 (1-3): "))
+            selected_career = career_options[career_choice - 1]
             
             # 获取角色名称
             character_name = input("\n请输入角色名称: ")
             
             # 保存角色数据
             print("\n正在保存角色数据...")
-            save_result = self.save_character_data(character_name, selected_race, selected_identity)
+            save_result = self.save_character_data(character_name, selected_race, selected_career)
             
             if save_result:
                 print(f"\n角色 {character_name} 创建成功!")
@@ -426,8 +420,8 @@ class CharacterCreationManager:
                     "save_id": self.current_save_id,
                     "character_name": character_name,
                     "era": self.selected_era.get('name'),
-                    "race": selected_race.get('name'),
-                    "identity": selected_identity.get('name')
+                    "race": selected_race.get('sub_race'),
+                    "career": selected_career.get('name')
                 }
             else:
                 print("\n角色创建失败，请重试")
