@@ -284,7 +284,44 @@ class StorylineManager:
             if value is None:
                 continue
             
-            # 更新存档数据
+            # 处理嵌套路径映射 (例如 "{temp_type}.name")
+            if "." in source_path and "{" in source_path and "}" in source_path:
+                # 提取变量部分
+                start_idx = source_path.find("{")
+                end_idx = source_path.find("}")
+                if start_idx != -1 and end_idx != -1:
+                    var_name = source_path[start_idx+1:end_idx]
+                    var_value = current_save.get(var_name)
+                    if var_value:
+                        # 获取变量后的路径部分
+                        path_suffix = source_path[end_idx+1:]
+                        if path_suffix.startswith("."):
+                            path_suffix = path_suffix[1:]  # 移除前导点
+                        
+                        # 创建或获取目标对象
+                        if var_value not in current_save:
+                            current_save[var_value] = {}
+                        
+                        # 如果目标是嵌套对象，确保所有路径都存在
+                        if "." in path_suffix:
+                            parts = path_suffix.split(".")
+                            current_obj = current_save[var_value]
+                            # 处理中间路径
+                            for i, part in enumerate(parts[:-1]):
+                                if part not in current_obj:
+                                    current_obj[part] = {}
+                                current_obj = current_obj[part]
+                            # 设置最终值
+                            current_obj[parts[-1]] = value
+                        else:
+                            # 简单路径，直接设置
+                            if isinstance(current_save[var_value], dict):
+                                current_save[var_value][path_suffix] = value
+                            else:
+                                current_save[var_value] = {path_suffix: value}
+                        continue
+            
+            # 直接存储到顶层
             current_save[target_key] = value
         
         # 保存更新后的存档数据

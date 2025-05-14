@@ -5,6 +5,14 @@
 """
 
 from gameflow.core import GameFlow
+from gameflow.character_creation import CharacterCreationManager
+from gameflow.power_generator import PowerGenerator
+from gameflow.game_manager import GameManager
 
 # 导出主要类
-__all__ = ['GameFlow'] 
+__all__ = [
+    'GameFlow',
+    'CharacterCreationManager',
+    'PowerGenerator',
+    'GameManager'
+] 

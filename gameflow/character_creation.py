@@ -295,7 +295,14 @@ class CharacterCreationManager:
                     "id": self.selected_era.get('id'),
                     "name": self.selected_era.get('name'),
                     "era_number": self.selected_era.get('era_number'),
-                    "history": self.era_history if self.era_history else self.selected_era.get('era_background')
+                    "key_features_joined": ", ".join(self.selected_era.get('key_features', [])),
+                    "key_features": self.selected_era.get('key_features', []),
+                    "dominant_races_joined": ", ".join(self.selected_era.get('dominant_races', [])),
+                    "dominant_races": self.selected_era.get('dominant_races', []),
+                    "magic_system": self.selected_era.get('magic_system', ''),
+                    "technology_level": self.selected_era.get('technology_level', ''),
+                    "destruction_cause": self.selected_era.get('destruction_cause', ''),
+                    "history": self.era_history if self.era_history else self.selected_era.get('era_background', '')
                 },
                 "race": selected_race,
                 "career": selected_career,
