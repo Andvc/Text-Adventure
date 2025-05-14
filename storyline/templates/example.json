@@ -22,11 +22,11 @@
     "(选中技能: {skills[{active_skill_index}]})",
     "(能力等级: {text;power_levels;levels[{power_level}].name})",
     "(能力描述: {text;power_levels;levels[{power_level}].universal_description})",
-    "<根据以上信息，创建一个角色背景故事。故事应该：\n1. 反映角色在当前纪元的生活和经历\n2. 展示角色的身份和社会地位\n3. 解释角色如何获得当前的能力等级\n4. 描述角色与所处地点的关系\n5. 提及角色掌握的技能，特别是当前选中的技能>",
+    "<角色背景简述>",
     "[character_background=\"string\"]",
-    "<基于角色背景，描述角色当前面临的场景和挑战。场景应该：\n1. 与当前地点相关\n2. 提供使用角色技能的机会\n3. 反映纪元特征\n4. 包含环境描述和氛围营造>",
+    "<场景与挑战简述>",
     "[current_scene=\"string\"]",
-    "<提供三个选项，让角色应对当前场景。每个选项应该：\n1. 提供明显不同的行动方向\n2. 至少有一个选项与选中技能相关\n3. 反映角色能力等级的限制和可能性\n4. 可能带来不同的后果>",
+    "<三个应对选项简述>",
     "[option1=\"string\", option2=\"string\", option3=\"string\"]"
   ],
   "output_storage": {

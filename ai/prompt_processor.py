@@ -139,9 +139,7 @@ class PromptProcessor:
             
             # 添加三引号描述
             if content:
-                lines.append(f'  """')
-                lines.append(f'  {content}')
-                lines.append(f'  """')
+                lines.append(f'  """{content}"""')
             
             # 添加逗号（除了最后一个字段）
             if i < len(fields) - 1:

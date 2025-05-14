@@ -2,7 +2,7 @@
   "template_id": "character_options",
   "name": "角色选项生成",
   "description": "基于纪元信息生成角色的种族和职业选项",
-  "version": "1.2",
+  "version": "1.3",
   "author": "系统",
   "created_at": "2024-05-05",
   "tags": [
@@ -18,9 +18,9 @@
     "(魔法体系: {era.magic_system})",
     "(技术水平: {era.technology_level})",
     "(历史背景: {era_history})",
-    "<严格基于以上纪元的主导种族({era.dominant_races_joined})，生成三个可选的种族类别。每个种族必须包含以下字段：\n- main_race：主种族（必须来自主导种族列表）\n- sub_race：子种族（主种族的变种或分支）\n- description：详细的种族特点和文化背景描述>",
+    "<生成三个可选的种族类别，字段要求：main_race, sub_race, description>",
     "[race_options=\"array\"]",
-    "<基于以上纪元信息，生成三个可选的职业。每个职业都应该具有上限高、下限低的成长空间。每个职业对象必须包含以下字段：\n- name：职业名称\n- description：职业详细描述，包括社会地位、常见活动和技能特点\n- growth_path：成长路径，描述该职业从新手到大师的发展轨迹\n- special_abilities：特殊能力，该职业独有的或擅长的能力\n\n请确保这些职业符合纪元背景，并具有足够的深度和发展空间>",
+    "<生成三个可选的职业，字段要求：name, description, growth_path, special_abilities>",
     "[career_options=\"array\"]"
   ],
   "output_storage": {
