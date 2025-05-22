@@ -1,6 +1,8 @@
-# 文字冒险游戏引擎
+# 目前还在开发阶段，run不得，仅作进程展示😊
 
-这是一个基于Python的文字冒险游戏引擎，通过AI驱动故事生成，提供沉浸式的文字冒险体验。本文档将展示系统的核心功能和使用方法。
+# Text Adventure
+
+基于Python的文字冒险游戏，通过AI驱动故事生成、道具获取、剧情走向、升级进阶、结局导向。
 
 ## 项目结构
 
@@ -8,15 +10,35 @@
 Text Adventure/
 ├── ai/                # AI模块 - 提示词处理与API交互
 ├── data/              # 数据模块 - 游戏数据管理
+│   └── text/          # 文本数据文件
+│       └── power_levels.json  # 能力等级数据
+├── gameflow/          # 游戏流程模块 - 游戏流程控制和管理
+│   ├── background_creation.py  # 背景创建管理器
+│   ├── power_generator.py      # 能力与物品生成器
+│   ├── event_selector.py       # 事件选择器
+│   └── README.md              # 游戏流程模块说明文档
 ├── storyline/         # 故事线模块 - 故事模板与剧情生成
+│   ├── templates/     # 模板文件目录
+│   │   ├── example.json                # 示例模板
+│   │   ├── simple_loop.json            # 简单循环模板
+│   │   ├── power_item_generator.json   # 能力物品生成模板
+│   │   ├── era_background_generator.json   # 时代背景生成模板
+│   │   ├── family_background_generator.json # 家庭背景生成模板
+│   │   └── event_system.json           # 事件系统模板
+│   └── storyline_manager.py  # 故事线管理器
 ├── save/              # 游戏存档目录
 ├── test/              # 测试文件目录
-└── editor/            # JSON编辑器 - 配置文件可视化编辑工具（可选）
+│   ├── test_example.py            # 示例测试
+│   ├── test_simple_loop_cycle.py  # 循环测试
+│   ├── test_save_system.py        # 存档系统测试
+│   ├── test_power_item_generator.py # 能力生成测试
+│   └── test_event_system.py       # 事件系统测试
+├── editor/            # JSON编辑器 - 配置文件可视化编辑工具（可选）
+├── game_main.py       # 游戏主程序
+└── config.py          # 全局配置文件
 ```
 
-## 高级功能演示
-
-本游戏引擎支持多种高级功能，为创建复杂、动态的文字冒险游戏提供了强大的工具。以下是关键功能的示例：
+## 功能演示
 
 ### 1. 嵌套占位符系统
 
@@ -212,6 +234,13 @@ if success:
 - 管理存储映射
 - 生成故事内容
 
+### 游戏流程模块 (gameflow/)
+- 管理游戏流程和状态变化
+- 提供背景创建功能（时代背景、家庭背景）
+- 实现能力与物品生成（武器、职业、法器等）
+- 提供基于年龄权重的事件选择系统
+- 处理事件选项和结果影响
+
 ### AI模块 (ai/)
 - 处理提示词构建
 - 支持复杂占位符解析
@@ -256,7 +285,14 @@ python3 -m editor
    - 提供详细的背景信息
    - 明确指定输出格式
 
-3. **占位符使用**
+3. **事件系统**
+   - 为不同年龄段设置合理的权重
+   - 添加足够的事件条件确保事件触发的合理性
+   - 设计多样的事件选项及结果
+   - 确保事件间的连贯性和故事流畅性
+   - 结合角色属性设计事件效果
+
+4. **占位符使用**
    - 嵌套占位符: `{character.{field_name}}` 
    - 文本数据引用: `{text;file_name;path}`
    - 动态数组索引: `{array[{index}]}`
@@ -268,4 +304,5 @@ python3 -m editor
 2. 存储映射的字段必须与输出格式匹配
 3. 避免过深的嵌套，以保持模板的可读性
 4. 生成失败时会返回False，需要检查错误信息
-5. 建议在生成前备份存档数据 
+5. 建议在生成前备份存档数据
+6. 事件触发条件应合理设置，避免无法触发的情况 
