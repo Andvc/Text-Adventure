@@ -4,15 +4,13 @@
 提供游戏流程控制和管理功能
 """
 
-from gameflow.core import GameFlow
-from gameflow.character_creation import CharacterCreationManager
 from gameflow.power_generator import PowerGenerator
-from gameflow.game_manager import GameManager
+from gameflow.background_creation import BackgroundCreationManager
+from gameflow.event_selector import EventSelector
 
 # 导出主要类
 __all__ = [
-    'GameFlow',
-    'CharacterCreationManager',
     'PowerGenerator',
-    'GameManager'
+    'BackgroundCreationManager',
+    'EventSelector'
 ] 

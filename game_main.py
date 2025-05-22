@@ -126,20 +126,32 @@ def generate_power_item(game_manager):
     
     try:
         # 选择物品类型
-        print("\n请选择要生成的物品类型:")
-        print("1. 武器")
-        print("2. 职业")
-        type_choice = input("请选择 (1-2): ").strip()
+        print("\n请选择要生成的内容类型:")
+        print("1. 能力")
+        print("2. 物品")
+        print("3. 魔法")
+        print("4. 法器")
+        print("5. 丹药")
+        print("6. 功法")
+        print("7. 修炼角色")
+        type_choice = input("请选择 (1-7): ").strip()
         
-        if type_choice == "1":
-            item_type = "weapon"
-            item_type_name = "武器"
-        elif type_choice == "2":
-            item_type = "career"
-            item_type_name = "职业"
-        else:
+        # 映射选择到类型和名称
+        type_mapping = {
+            "1": ("ability", "能力"),
+            "2": ("item", "物品"),
+            "3": ("magic", "魔法"),
+            "4": ("artifact", "法器"),
+            "5": ("elixir", "丹药"),
+            "6": ("technique", "功法"),
+            "7": ("cultivation_role", "修炼角色")
+        }
+        
+        if type_choice not in type_mapping:
             print("无效的选择")
             return
+        
+        item_type, item_type_name = type_mapping[type_choice]
         
         level = int(input(f"请输入{item_type_name}等级 (1-7): "))
         if not (1 <= level <= 7):
@@ -149,14 +161,17 @@ def generate_power_item(game_manager):
         detail = input(f"请输入{item_type_name}描述 (可选): ")
         
         print(f"\n正在生成{item_type_name}...")
-        item = game_manager.generate_power_item(item_type, level, detail)
+        
+        # 根据类型调用相应的生成方法
+        generator_method = getattr(game_manager, f"generate_{item_type}")
+        item = generator_method(level, detail)
         
         if item:
             print("\n生成成功!")
             print(f"名称: {item.get('name', '未知')}")
             print(f"描述: {item.get('description', '无')}")
             print(f"起源: {item.get('origin', '无')}")
-            print("属性:")
+            print("特性:")
             for attr in item.get('attributes', []):
                 print(f"  - {attr}")
             print(f"用途: {item.get('usage', '无')}")

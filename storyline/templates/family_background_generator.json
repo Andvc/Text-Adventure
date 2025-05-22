@@ -1,0 +1,33 @@
+{
+  "template_id": "family_background_generator",
+  "name": "家庭背景生成器",
+  "description": "基于随机种子生成修仙世界的家庭背景",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-03-20",
+  "tags": [
+    "家庭背景",
+    "修仙世界",
+    "生成器"
+  ],
+  "prompt_segments": [
+    "## 生成参数",
+    "(修仙世界)",
+    "(随机种子: {random_seed})",
+    "<父母职业>",
+    "[parent_job=\"string\"]",
+    "<家族地位>",
+    "[family_status=\"string\"]",
+    "<财富>",
+    "[wealth=\"string\"]",
+    "<家族历史>",
+    "[history=\"string\"]"
+  ],
+  "output_storage": {
+    "parent_job": "family.parent_job",
+    "family_status": "family.family_status",
+    "wealth": "family.wealth",
+    "history": "family.history"
+  },
+  "prompt_template": "你是一位经验丰富的游戏设计师，精通修仙世界的背景设计。请根据以下参数，为文字冒险游戏创建一个精彩的家庭背景。\n\n## 输入参数\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容仅是内容提示，你需要根据指令生成内容：\n{format}"
+} 

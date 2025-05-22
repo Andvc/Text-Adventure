@@ -2,7 +2,7 @@
   "template_id": "power_item_generator",
   "name": "能力与物品生成器",
   "description": "基于等级、类型和可选描述生成具体的能力或物品",
-  "version": "1.1",
+  "version": "1.2",
   "author": "系统",
   "created_at": "2025-05-08",
   "tags": [
@@ -14,12 +14,13 @@
   ],
   "prompt_segments": [
     "## 生成参数",
+    "(修仙世界)",
     "(生成类型: {temp_type})",
     "(能力等级: {temp_level} - {text;power_levels;levels[{temp_level_index}].name})",
     "(能力描述: {text;power_levels;levels[{temp_level_index}].universal_description})",
+    "(类型示例: {text;power_levels;levels[{temp_level_index}].examples.{temp_type}})",
+    "(命名风格: {text;power_levels;levels[{temp_level_index}].style_note})",
     "(用户输入的详情: {temp_detail})",
-    "(纪元特征: {era.key_features_joined})",
-    "(魔法体系: {era.magic_system})",
     "(当前故事: {story.now})",
     "<名称>",
     "[name=\"string\"]",
@@ -28,13 +29,16 @@
     "<起源>",
     "[origin=\"string\"]",
     "<用途>",
-    "[usage=\"string\"]"
+    "[usage=\"string\"]",
+    "<特性>",
+    "[attributes=\"array\"]"
   ],
   "output_storage": {
     "name": "{temp_type}.name",
     "description": "{temp_type}.description",
     "origin": "{temp_type}.origin",
-    "usage": "{temp_type}.usage"
+    "usage": "{temp_type}.usage",
+    "attributes": "{temp_type}.attributes"
   },
   "prompt_template": "你是一位经验丰富的游戏设计师，精通物品与职业设计。请根据以下参数，为文字冒险游戏创建一个精彩的内容。\n\n## 输入参数\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容仅是内容提示，你需要根据指令生成内容：\n{format}"
 } 

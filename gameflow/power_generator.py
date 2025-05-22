@@ -25,6 +25,17 @@ class PowerGenerator:
     负责生成武器、职业等能力和物品
     """
     
+    # 定义支持的类型
+    SUPPORTED_TYPES = [
+        "ability",      # 能力
+        "item",         # 物品
+        "magic",        # 魔法
+        "artifact",     # 法器
+        "elixir",       # 丹药
+        "technique",    # 功法
+        "cultivation_role"  # 修炼角色
+    ]
+    
     def __init__(self):
         """初始化能力生成器"""
         self.storyline_manager = StorylineManager()
@@ -42,19 +53,66 @@ class PowerGenerator:
             print(f"加载能力等级数据失败: {str(e)}")
             self.power_levels_data = None
     
-    def generate_power_item(self, save_id: str, item_type: str, level: int, detail: str = "") -> Dict[str, Any]:
-        """生成能力或物品
+    def _get_level_data(self, level: int) -> Dict[str, Any]:
+        """获取等级数据（内部方法）
+        
+        Args:
+            level: 能力等级（0-7）
+            
+        Returns:
+            Dict[str, Any]: 等级数据
+        """
+        if level < 0 or level > 7:
+            raise ValueError("能力等级必须在0-7之间")
+        
+        if not self.power_levels_data:
+            self._load_power_levels()
+            if not self.power_levels_data:
+                raise RuntimeError("无法加载能力等级数据")
+        
+        return self.power_levels_data["levels"][level]
+    
+    def _get_type_examples(self, level: int, item_type: str) -> List[str]:
+        """获取指定类型和等级的示例（内部方法）
+        
+        Args:
+            level: 能力等级（1-7）
+            item_type: 物品类型
+            
+        Returns:
+            List[str]: 示例列表
+        """
+        level_data = self._get_level_data(level)
+        return level_data["examples"].get(item_type, [])
+    
+    def _get_type_style_note(self, level: int) -> str:
+        """获取指定等级的命名风格说明（内部方法）
+        
+        Args:
+            level: 能力等级（1-7）
+            
+        Returns:
+            str: 命名风格说明
+        """
+        level_data = self._get_level_data(level)
+        return level_data.get("style_note", "")
+    
+    def _generate_base(self, save_id: str, item_type: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """基础生成方法（内部方法）
         
         Args:
             save_id: 存档ID
-            item_type: 物品类型，如'weapon'或'career'
+            item_type: 物品类型
             level: 能力等级（1-7）
             detail: 可选的详细描述
             
         Returns:
-            Dict[str, Any]: 生成的结果，包含物品详情
+            Dict[str, Any]: 生成的结果
         """
         # 验证参数
+        if item_type not in self.SUPPORTED_TYPES:
+            raise ValueError(f"不支持的类型: {item_type}")
+        
         if level < 1 or level > 7:
             raise ValueError("能力等级必须在1-7之间")
         
@@ -65,11 +123,11 @@ class PowerGenerator:
         
         # 添加临时参数
         save_data_content["temp_level"] = level
-        save_data_content["temp_level_index"] = level - 1  # 添加预计算的索引
+        save_data_content["temp_level_index"] = level - 1
         save_data_content["temp_type"] = item_type
         save_data_content["temp_detail"] = detail
         
-        # 创建物品ID（使用当前时间戳和随机数作为唯一标识）
+        # 创建物品ID
         import uuid
         item_id = f"{item_type}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
         save_data_content["temp_item_id"] = item_id
@@ -108,18 +166,9 @@ class PowerGenerator:
         updated_save[items_array_key].append(generated_item)
         
         # 删除临时参数和单个物品存储
-        if "temp_level" in updated_save:
-            del updated_save["temp_level"]
-        if "temp_level_index" in updated_save:
-            del updated_save["temp_level_index"]
-        if "temp_type" in updated_save:
-            del updated_save["temp_type"]
-        if "temp_detail" in updated_save:
-            del updated_save["temp_detail"]
-        if "temp_item_id" in updated_save:
-            del updated_save["temp_item_id"]
-        if item_type in updated_save:
-            del updated_save[item_type]
+        for key in ["temp_level", "temp_level_index", "temp_type", "temp_detail", "temp_item_id", item_type]:
+            if key in updated_save:
+                del updated_save[key]
         
         # 保存清理后的存档
         save_data("character", save_id, updated_save)
@@ -127,41 +176,96 @@ class PowerGenerator:
         # 返回生成的物品结果
         return generated_item
     
-    def _get_level_description(self, level: int) -> Dict[str, Any]:
-        """获取等级的通用描述（内部方法）
+    def generate_ability(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成能力
         
         Args:
+            save_id: 存档ID
             level: 能力等级（1-7）
+            detail: 可选的详细描述
             
         Returns:
-            Dict[str, Any]: 等级描述信息
+            Dict[str, Any]: 生成的能力
         """
-        # 验证参数
-        if level < 1 or level > 7:
-            raise ValueError("能力等级必须在1-7之间")
+        return self._generate_base(save_id, "ability", level, detail)
+    
+    def generate_item(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成物品
         
-        # 确保能力等级数据已加载
-        if not self.power_levels_data:
-            self._load_power_levels()
-            if not self.power_levels_data:
-                raise RuntimeError("无法加载能力等级数据")
-        
-        # 直接从加载的数据中获取
-        level_index = level - 1  # 转换为0-based索引
-        
-        # 获取等级数据
-        try:
-            level_data = self.power_levels_data["levels"][level_index]
+        Args:
+            save_id: 存档ID
+            level: 能力等级（1-7）
+            detail: 可选的详细描述
             
-            return {
-                "level": level,
-                "name": level_data.get("name", f"等级{level}"),
-                "description": level_data.get("universal_description", ""),
-                "power_range": level_data.get("power_range", ""),
-                "examples": level_data.get("examples", {})
-            }
-        except (KeyError, IndexError) as e:
-            raise RuntimeError(f"获取等级{level}数据失败: {str(e)}")
+        Returns:
+            Dict[str, Any]: 生成的物品
+        """
+        return self._generate_base(save_id, "item", level, detail)
+    
+    def generate_magic(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成魔法
+        
+        Args:
+            save_id: 存档ID
+            level: 能力等级（1-7）
+            detail: 可选的详细描述
+            
+        Returns:
+            Dict[str, Any]: 生成的魔法
+        """
+        return self._generate_base(save_id, "magic", level, detail)
+    
+    def generate_artifact(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成法器
+        
+        Args:
+            save_id: 存档ID
+            level: 能力等级（1-7）
+            detail: 可选的详细描述
+            
+        Returns:
+            Dict[str, Any]: 生成的法器
+        """
+        return self._generate_base(save_id, "artifact", level, detail)
+    
+    def generate_elixir(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成丹药
+        
+        Args:
+            save_id: 存档ID
+            level: 能力等级（1-7）
+            detail: 可选的详细描述
+            
+        Returns:
+            Dict[str, Any]: 生成的丹药
+        """
+        return self._generate_base(save_id, "elixir", level, detail)
+    
+    def generate_technique(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成功法
+        
+        Args:
+            save_id: 存档ID
+            level: 能力等级（1-7）
+            detail: 可选的详细描述
+            
+        Returns:
+            Dict[str, Any]: 生成的功法
+        """
+        return self._generate_base(save_id, "technique", level, detail)
+    
+    def generate_cultivation_role(self, save_id: str, level: int, detail: str = "") -> Dict[str, Any]:
+        """生成修炼角色
+        
+        Args:
+            save_id: 存档ID
+            level: 能力等级（1-7）
+            detail: 可选的详细描述
+            
+        Returns:
+            Dict[str, Any]: 生成的修炼角色
+        """
+        return self._generate_base(save_id, "cultivation_role", level, detail)
     
     def explain_power_level(self, level: int) -> str:
         """解释能力等级
@@ -173,17 +277,21 @@ class PowerGenerator:
             str: 格式化的等级解释
         """
         try:
-            level_info = self._get_level_description(level)
+            level_data = self._get_level_data(level)
             
             explanation = [
-                f"等级 {level} - {level_info['name']}",
-                f"\n描述: {level_info['description']}",
-                f"\n能力范围: {level_info['power_range']}",
-                f"\n示例:",
-                f"  能力: {level_info['examples'].get('ability', '无')}",
-                f"  物品: {level_info['examples'].get('item', '无')}",
-                f"  魔法: {level_info['examples'].get('magic', '无')}"
+                f"等级 {level} - {level_data['name']}",
+                f"\n描述: {level_data['description']}",
+                f"\n能力范围: {level_data['power_range']}",
+                f"\n命名风格: {level_data['style_note']}",
+                f"\n示例:"
             ]
+            
+            # 添加所有类型的示例
+            for type_name in self.SUPPORTED_TYPES:
+                examples = level_data["examples"].get(type_name, [])
+                if examples:
+                    explanation.append(f"\n  {type_name}: {', '.join(examples)}")
             
             return "\n".join(explanation)
         except Exception as e:

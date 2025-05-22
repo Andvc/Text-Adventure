@@ -1,0 +1,41 @@
+{
+    "temp_type": "era",
+    "current_level": 1,
+    "active_skill": "fireball",
+    "era": {
+        "details": {
+            "name": "测试时代",
+            "features": {
+                "main": "灵气充沛"
+            }
+        },
+        "history": {
+            "events": [
+                {
+                    "description": "天地异变"
+                }
+            ]
+        }
+    },
+    "character": {
+        "stats": {
+            "level": {
+                "name": "炼气期"
+            }
+        },
+        "skills": {
+            "fireball": {
+                "power": 100
+            }
+        }
+    },
+    "deeply": {
+        "nested": {
+            "path": {
+                "to": {
+                    "value": "最终值"
+                }
+            }
+        }
+    }
+}

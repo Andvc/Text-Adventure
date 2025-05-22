@@ -270,59 +270,80 @@ class StorylineManager:
             return False
         
     def _apply_storage_mapping(self, result: Dict[str, Any], mapping: Dict[str, str], current_save: Dict[str, Any], save_name: str) -> None:
-        """应用存储映射
-        
-        Args:
-            result: 生成的结果数据
-            mapping: 存储映射配置
-            current_save: 当前存档数据
-            save_name: 存档名称
-        """
+        """应用存储映射（支持多级嵌套、数组、变量路径）"""
         for target_key, source_path in mapping.items():
-            # 从结果中获取值
             value = result.get(target_key)
             if value is None:
                 continue
-            
-            # 处理嵌套路径映射 (例如 "{temp_type}.name")
-            if "." in source_path and "{" in source_path and "}" in source_path:
-                # 提取变量部分
-                start_idx = source_path.find("{")
-                end_idx = source_path.find("}")
-                if start_idx != -1 and end_idx != -1:
-                    var_name = source_path[start_idx+1:end_idx]
-                    var_value = current_save.get(var_name)
-                    if var_value:
-                        # 获取变量后的路径部分
-                        path_suffix = source_path[end_idx+1:]
-                        if path_suffix.startswith("."):
-                            path_suffix = path_suffix[1:]  # 移除前导点
-                        
-                        # 创建或获取目标对象
-                        if var_value not in current_save:
-                            current_save[var_value] = {}
-                        
-                        # 如果目标是嵌套对象，确保所有路径都存在
-                        if "." in path_suffix:
-                            parts = path_suffix.split(".")
-                            current_obj = current_save[var_value]
-                            # 处理中间路径
-                            for i, part in enumerate(parts[:-1]):
-                                if part not in current_obj:
-                                    current_obj[part] = {}
-                                current_obj = current_obj[part]
-                            # 设置最终值
-                            current_obj[parts[-1]] = value
-                        else:
-                            # 简单路径，直接设置
-                            if isinstance(current_save[var_value], dict):
-                                current_save[var_value][path_suffix] = value
-                            else:
-                                current_save[var_value] = {path_suffix: value}
-                        continue
-            
-            # 直接存储到顶层
-            current_save[target_key] = value
-        
-        # 保存更新后的存档数据
+            tokens = self._parse_path_tokens(source_path, current_save)
+            self._set_value_by_tokens(current_save, tokens, value)
         save_data("character", save_name, current_save)
+
+    def _parse_path_tokens(self, path_str: str, current_save: dict) -> list:
+        """
+        解析路径字符串为token列表，支持变量替换与数组索引。
+        例如："{type}.arr[1].x" -> ['实际type值', 'arr', 1, 'x']
+        """
+        import re
+        tokens = []
+        # 变量替换
+        def replace_var(match):
+            var_name = match.group(1)
+            return str(current_save.get(var_name, var_name))
+        path_str = re.sub(r'\{([^{}]+)\}', replace_var, path_str)
+        # 分割并处理数组
+        pattern = r'([^.\[\]]+)|(\[\d+\])'
+        for part in path_str.split('.'):
+            # 处理数组索引
+            while '[' in part and ']' in part:
+                idx1 = part.index('[')
+                idx2 = part.index(']')
+                if idx1 > 0:
+                    tokens.append(part[:idx1])
+                tokens.append(int(part[idx1+1:idx2]))
+                part = part[idx2+1:]
+            if part:
+                tokens.append(part)
+        return tokens
+
+    def _set_value_by_tokens(self, obj: dict, tokens: list, value):
+        """
+        根据token列表递归写入value，自动创建字典/数组。
+        例如：tokens=['a', 'b', 0, 'c']
+        """
+        cur = obj
+        for i, token in enumerate(tokens):
+            is_last = (i == len(tokens) - 1)
+            if is_last:
+                if isinstance(token, int):
+                    # 当前为数组索引
+                    if not isinstance(cur, list):
+                        cur = []
+                    # 扩展数组
+                    while len(cur) <= token:
+                        cur.append({})
+                    cur[token] = value
+                else:
+                    cur[token] = value
+                return
+            # 非最后一层
+            next_token = tokens[i + 1]
+            if isinstance(token, int):
+                # 当前为数组索引
+                if not isinstance(cur, list):
+                    # 替换父对象的引用
+                    raise TypeError("父对象不是数组，无法索引")
+                # 扩展数组
+                while len(cur) <= token:
+                    cur.append({})
+                if isinstance(next_token, int):
+                    if not isinstance(cur[token], list):
+                        cur[token] = []
+                elif not isinstance(cur[token], dict):
+                    cur[token] = {}
+                cur = cur[token]
+            else:
+                if token not in cur or (isinstance(next_token, int) and not isinstance(cur[token], list)):
+                    # 下一个是数组索引则新建list，否则新建dict
+                    cur[token] = [] if isinstance(next_token, int) else {}
+                cur = cur[token]

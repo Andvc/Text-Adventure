@@ -1,0 +1,159 @@
+{
+  "template_id": "event_system",
+  "name": "事件系统模板",
+  "description": "修仙世界通用事件系统，支持年龄权重设置",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2025-05-15",
+  "tags": [
+    "事件",
+    "随机事件",
+    "生命历程",
+    "年龄权重"
+  ],
+  
+  "event_structure": {
+    "event_id": "唯一标识符",
+    "name": "事件名称",
+    "description": "事件简短描述",
+    "event_type": "事件主要类型",
+    "tags": ["事件标签"],
+    
+    "age_weights": [
+      {"min_age": 0, "max_age": 0, "weight": 0.0}
+    ],
+    
+    "conditions": {
+      "required_attributes": {
+        "属性名": {"min": 0, "max": 0}
+      },
+      "required_status": ["必要状态"],
+      "forbidden_status": ["禁止状态"],
+      "probability": 0.0,
+      "required_items": ["必要物品"],
+      "required_relationships": {
+        "关系对象": {"min": 0}
+      },
+      "location_requirements": ["必要地点"]
+    },
+    
+    "content": {
+      "background": "事件背景",
+      "main_text": "主要文本",
+      "image_prompt": "图像提示词"
+    },
+    
+    "options": [
+      {
+        "option_id": "选项ID",
+        "text": "选项文本",
+        "conditions": {
+          "required_attributes": {
+            "属性名": {"min": 0}
+          },
+          "probability": 1.0
+        },
+        "results": {
+          "attribute_changes": {
+            "属性名": 0
+          },
+          "status_add": ["添加状态"],
+          "status_remove": ["移除状态"],
+          "item_add": ["添加物品"],
+          "item_remove": ["移除物品"],
+          "relationship_changes": {
+            "关系对象": 0
+          },
+          "follow_up_events": ["后续事件ID"],
+          "story_text": "结果文本"
+        }
+      }
+    ],
+    
+    "default_result": {
+      "attribute_changes": {},
+      "status_add": [],
+      "status_remove": [],
+      "item_add": [],
+      "item_remove": [],
+      "relationship_changes": {},
+      "follow_up_events": [],
+      "story_text": "默认结果文本"
+    }
+  },
+  
+  "example_events": [
+    {
+      "event_id": "first_meditation",
+      "name": "初次冥想",
+      "description": "年幼时的第一次冥想体验",
+      "event_type": "修炼",
+      "tags": ["入门", "感悟", "启蒙"],
+      
+      "age_weights": [
+        {"min_age": 5, "max_age": 10, "weight": 1.0},
+        {"min_age": 11, "max_age": 15, "weight": 0.5},
+        {"min_age": 16, "max_age": 999, "weight": 0.1}
+      ],
+      
+      "conditions": {
+        "required_attributes": {
+          "cultivation_level": {"min": 0, "max": 1}
+        },
+        "probability": 0.7
+      },
+      
+      "content": {
+        "background": "年幼的你被长辈引导，尝试第一次冥想。",
+        "main_text": "在一个宁静的傍晚，{character.mentor_name}教导你盘腿而坐，调整呼吸，尝试感知周围的灵气。这是你第一次正式的修行尝试。",
+        "image_prompt": "年幼孩童在竹林中盘坐冥想，周围有微弱的灵气光芒"
+      },
+      
+      "options": [
+        {
+          "option_id": "focus_hard",
+          "text": "全神贯注，努力感知",
+          "results": {
+            "attribute_changes": {
+              "cultivation_exp": 10,
+              "intelligence": 2,
+              "spirit": 3
+            },
+            "status_add": ["meditation_basics"],
+            "story_text": "你全神贯注，竭尽全力地试图感知周围的灵气。虽然过程有些吃力，但你确实感受到了一丝若有若无的能量波动。{character.mentor_name}点头表示赞许，这是一个不错的开始。"
+          }
+        },
+        {
+          "option_id": "relax_mind",
+          "text": "放松心神，顺其自然",
+          "results": {
+            "attribute_changes": {
+              "cultivation_exp": 15,
+              "spirit": 5
+            },
+            "status_add": ["natural_meditation"],
+            "story_text": "你没有刻意追求，而是放松心神，顺其自然。不知不觉中，你感受到周围的能量如溪流般轻柔流动。{character.mentor_name}露出惊讶的表情，你似乎表现出了不错的灵根天赋。"
+          }
+        },
+        {
+          "option_id": "fall_asleep",
+          "text": "不知不觉睡着了",
+          "results": {
+            "attribute_changes": {
+              "cultivation_exp": 5
+            },
+            "story_text": "你试着按照指导冥想，却不知不觉中睡着了。{character.mentor_name}无奈地摇摇头，这是很多初学者都会经历的情况。不过，在梦中你似乎感受到了一丝灵气的波动。"
+          }
+        }
+      ],
+      
+      "default_result": {
+        "attribute_changes": {
+          "cultivation_exp": 5
+        },
+        "status_add": ["meditation_basics"],
+        "story_text": "你按照指导尝试了第一次冥想。虽然没有特别的感悟，但这是修行之路的第一步。"
+      }
+    }
+  ]
+} 

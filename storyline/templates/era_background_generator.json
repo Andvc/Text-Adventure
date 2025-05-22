@@ -1,0 +1,30 @@
+{
+  "template_id": "era_background_generator",
+  "name": "时代背景生成器",
+  "description": "基于随机种子生成修仙世界的时代背景",
+  "version": "1.0",
+  "author": "系统",
+  "created_at": "2024-03-20",
+  "tags": [
+    "时代背景",
+    "修仙世界",
+    "生成器"
+  ],
+  "prompt_segments": [
+    "## 生成参数",
+    "(修仙世界)",
+    "(随机种子: {random_seed})",
+    "<时代名称>",
+    "[name=\"string\"]",
+    "<时代特征>",
+    "[feature=\"string\"]",
+    "<历史事件>",
+    "[event=\"string\"]"
+  ],
+  "output_storage": {
+    "name": "era.name",
+    "feature": "era.feature",
+    "event": "era.event"
+  },
+  "prompt_template": "你是一位经验丰富的游戏设计师，精通修仙世界的背景设计。请根据以下参数，为文字冒险游戏创建一个精彩的时代背景。\n\n## 输入参数\n{input_info}\n\n## 输出格式\n请严格按照以下JSON格式回复，注意三引号中的内容仅是内容提示，你需要根据指令生成内容：\n{format}"
+}
